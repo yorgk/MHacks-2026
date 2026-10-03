@@ -3,6 +3,7 @@
     python scripts/smoke_test.py            # all steps
     python scripts/smoke_test.py --i2c      # only the I2C scan (after wiring a sensor)
     python scripts/smoke_test.py --loopback # jumper GPIO25->GPIO26 and GPIO8->GPIO9 first (no parts)
+    python scripts/smoke_test.py --watch    # live I2C scan mirrored on the device while you fix wiring
 
 Needs OG firmware (ogfw) on the FREE-WILi; see CLAUDE.md "Firmware". Every device step goes
 through probe/hw.py, so a PASS here means the code the agent uses works on the real device.
@@ -133,10 +134,42 @@ def uart_loopback(probe):
     return f"echoed {message!r}"
 
 
+def watch(probe, seconds: float, until: set[int]) -> None:
+    """Rescan the bus about once a second and mirror the result on the device (silent).
+
+    For fixing wiring without looking at the laptop: red LEDs + "I2C: none" while nothing
+    answers, green LEDs + the addresses as soon as something does.
+    """
+    print(f"\n=== watching the I2C bus for {seconds:.0f} s (Ctrl-C to stop) ===", flush=True)
+    start = time.monotonic()
+    last: list[int] | None = None
+    stable = 0
+    try:
+        while time.monotonic() - start < seconds:
+            found = probe.scan_i2c()
+            if found != last:
+                text = " ".join(f"0x{a:02X}" for a in found) or "none"
+                print(f"[{time.monotonic() - start:5.1f}s] I2C: {text}", flush=True)
+                probe.set_status("ok" if found else "fail")
+                probe.show_text(f"I2C: {text}")
+                last, stable = found, 0
+            stable += 1
+            if until and until <= set(found) and stable >= 3:
+                print("all expected addresses answered 3 scans in a row", flush=True)
+                return
+            time.sleep(0.7)
+    except KeyboardInterrupt:
+        pass
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--i2c", action="store_true", help="only run the I2C scan")
     parser.add_argument("--loopback", action="store_true", help="only run pin + UART loopback tests")
+    parser.add_argument("--watch", type=float, nargs="?", const=180.0, metavar="SECONDS",
+                        help="rescan I2C continuously and show the result on the device (default 180 s)")
+    parser.add_argument("--until", default="", metavar="ADDRS",
+                        help="with --watch: stop early once these answer, e.g. 0x14,0x44")
     args = parser.parse_args()
 
     holder: list = []
@@ -145,7 +178,9 @@ def main() -> None:
         sys.exit(1)
     probe = holder[0]
     try:
-        if args.loopback:
+        if args.watch:
+            watch(probe, args.watch, {int(a, 16) for a in args.until.split(",") if a})
+        elif args.loopback:
             pin_loopback(probe)
             uart_loopback(probe)
         else:
