@@ -3,6 +3,8 @@
     cd freewili-probe
     python scripts/smoke_test.py            # all steps
     python scripts/smoke_test.py --i2c      # only the I2C scan (after wiring a sensor)
+    python scripts/smoke_test.py --onboard  # try scanning the FREE-WILi's INTERNAL I2C bus (no parts)
+    python scripts/smoke_test.py --loopback # jumper GPIO25->GPIO26 and GPIO8->GPIO9 first (no parts)
 
 Each step prints PASS/FAIL. Paste the full output to Claude if anything fails.
 """
@@ -104,9 +106,63 @@ def i2c(fw):
     return "found " + ", ".join(f"0x{a:02X}" for a in found)
 
 
+@step("9. internal I2C bus on the display CPU (no parts needed; may be unsupported)")
+def onboard(fw):
+    from freewili.types import FreeWiliProcessorType as P
+
+    found = fw.poll_i2c(P.Display).expect("poll_i2c on the Display processor failed")
+    if not found:
+        return "scanned but nothing answered"
+    return "found " + ", ".join(f"0x{a:02X}" for a in found) + " (expect LIS3DH 0x18/0x19, RTC 0x6F, expander 0x20/0x21)"
+
+
+@step("10. pin loopback (jumper GPIO25 -> GPIO26)")
+def pin_loopback(fw):
+    from freewili.types import IOMenuCommand
+
+    seen = []
+    for cmd, want in ((IOMenuCommand.High, 1), (IOMenuCommand.Low, 0)):
+        fw.set_io(25, cmd).expect("set_io 25 failed")
+        time.sleep(0.05)
+        got = fw.get_io().expect("get_io failed")[26]
+        seen.append(got)
+        if got != want:
+            raise RuntimeError(f"drove GPIO25={want} but GPIO26 read {got}: jumper missing/loose or wrong pins")
+    return f"GPIO26 followed GPIO25 {seen}"
+
+
+@step("11. UART loopback (jumper GPIO8 TX -> GPIO9 RX)")
+def uart_loopback(fw):
+    from freewili.types import UART1Data
+
+    received = bytearray()
+
+    def on_event(_event_type, _frame, data):
+        if isinstance(data, UART1Data):
+            received.extend(data.data)
+
+    fw.set_event_callback(on_event)
+    fw.enable_uart_events(True).expect("enable_uart_events failed")  # v54 firmware: acts as a toggle
+    try:
+        message = b"probe loopback"  # keep under ~22 bytes per write (v54 firmware limit)
+        fw.write_uart(message).expect("write_uart failed")
+        end = time.monotonic() + 1.5
+        while time.monotonic() < end and message not in received:
+            fw.process_events()
+            time.sleep(0.05)
+    finally:
+        fw.enable_uart_events(False)
+        fw.set_event_callback(None)
+    if message not in received:
+        raise RuntimeError(f"sent {message!r}, received {bytes(received)!r}: check the 8->9 jumper and UART baud settings")
+    return f"echoed {message!r}"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--i2c", action="store_true", help="only run the I2C scan")
+    parser.add_argument("--onboard", action="store_true", help="only scan the internal I2C bus")
+    parser.add_argument("--loopback", action="store_true", help="only run pin + UART loopback tests")
     args = parser.parse_args()
 
     if not check_install() or not find_device():
@@ -119,12 +175,18 @@ def main() -> None:
         if not open_device(fw):
             summary()
             sys.exit(1)
-        if not args.i2c:
-            leds(fw)
-            display(fw)
-            tone(fw)
-            pins(fw)
-        i2c(fw)
+        if args.onboard:
+            onboard(fw)
+        elif args.loopback:
+            pin_loopback(fw)
+            uart_loopback(fw)
+        else:
+            if not args.i2c:
+                leds(fw)
+                display(fw)
+                tone(fw)
+                pins(fw)
+            i2c(fw)
     finally:
         fw.close()
     summary()

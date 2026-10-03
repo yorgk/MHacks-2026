@@ -55,7 +55,29 @@ into a Grove plug's sockets as a hack), and a breadboard if they have one.
 3. **Discord / other hackers.** Ask in the MHacks Discord.
 4. **EECS / BBB labs** (Beyster Building, next to the Duderstadt). Weekend access may need an
    MCard; mind the 8 PM door lock.
-5. Last resort: Micro Center, Madison Heights (~45 min drive). Check hours first.
+5. Last resort: Micro Center, Madison Heights (~45 min drive). Check hours first. Not worth
+   missing the 8 PM door lock.
+
+### No-parts contingency (if MLH is unstaffed or out of stock)
+Probe needs **any one I2C device**. Don't wait at the MLH desk more than 10-15 minutes; run
+`python scripts/smoke_test.py` (steps 1-7 need no parts) while waiting. Then, in order:
+1. **FREE-WILi sponsor table.** Their examples use a SparkFun 9DoF IMU, so they likely have one.
+   Ask: "I'm building an AI debugger on the FREE-WILi's I2C. Can I borrow any I2C sensor?"
+2. **Other hackers / MHacks Discord.** Arduino starter kits often include an MPU-6050, BME280 or
+   an I2C LCD.
+3. **The user's own Orcas.** Plug in the Bottlenose or WILEye and run
+   `python scripts/smoke_test.py --i2c`; if an address shows up, that's a free target (untested idea).
+4. **The FREE-WILi's internal I2C bus** (display CPU: LIS3DH accelerometer, MCP7940 RTC,
+   PCAL6416 expander): `python scripts/smoke_test.py --onboard` tries `poll_i2c(Display)`.
+   If it lists addresses, the whole AI path can be built and tested tonight with zero parts
+   (not a breadboard demo, but it unblocks development). Unverified whether firmware supports it.
+5. **Zero-parts loopback demo** with the male-to-male jumpers:
+   `python scripts/smoke_test.py --loopback` drives GPIO25 and reads GPIO26 (jumper 25->26),
+   and sends UART on GPIO8 and listens on GPIO9 (jumper 8->9). Reframes Probe as "is this wire /
+   connection actually working?" Weaker than the sensor demo, but real.
+**9:30 PM go/no-go still applies.** With no I2C device by then: demo loopbacks + onboard bus
+(if #4 works) and show sensor support via the mock scenarios, or switch to a fallback idea from
+RESEARCH.md.
 
 ### Wiring (verify pin locations on the physical header first)
 ```

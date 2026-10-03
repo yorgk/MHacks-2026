@@ -63,7 +63,7 @@ probe/devices.py   I2C address -> likely parts, ID-register checks, classic addr
 probe/diagnose.py  Deterministic checks (no AI): scan, identify, expected-address check, pin sanity, full report
 probe/agent.py     Gemini chat whose tools wrap diagnose/hw; also `--no-ai` offline report mode (demo fallback)
 scripts/smoke_test.py  First-hour hardware check: install, find, firmware, LEDs, display, tone, pins, I2C scan
-tests/test_mock.py     9 tests against MockProbe scenarios (no hardware, no API key). All passing at hand-off.
+tests/test_mock.py     11 tests against MockProbe scenarios (no hardware, no API key). All passing at hand-off.
 ```
 
 ### Run it
@@ -73,6 +73,8 @@ pip install -r requirements.txt
 cp .env.example .env    # add GEMINI_API_KEY (free key: https://aistudio.google.com/apikey)
 python scripts/smoke_test.py                      # FIRST. Real hardware check.
 python scripts/smoke_test.py --i2c                # re-scan after wiring a sensor
+python scripts/smoke_test.py --onboard            # no parts: try the FREE-WILi's internal I2C bus
+python scripts/smoke_test.py --loopback           # no parts: jumper 25->26 and 8->9 first
 python -m probe.agent --no-ai --expect 0x27       # offline report on the real device
 python -m probe.agent --code path/to/sketch.ino   # AI chat, may read the sketch
 PROBE_MOCK=1 PROBE_MOCK_SCENARIO=wrong_address python -m probe.agent   # no hardware
@@ -86,8 +88,13 @@ at 0x3F), `empty`, `stuck_bus`, `grove_lcd` (Grove LCD RGB Backlight at 0x3E + 0
 modules. Planned rentals: Grove LCD RGB Backlight (main demo bug: `demo/grove_lcd_sketch.ino`
 uses a generic LiquidCrystal_I2C 0x27 tutorial instead of `rgb_lcd` at 0x3E) and Grove
 Temperature and Barometer (BMP280). See the MLH table in docs/PLAN.md.
-Mock scenarios: `ok` (ADXL345 at 0x53), `wrong_address` (LCD backpack at 0x3F), `empty`
-(nothing answers), `stuck_bus` (every address answers / SDA low).
+
+## Status log (newest first; update this as things happen)
+- **Sat ~6 PM:** user waiting at the MLH Hardware Lab desk; nobody staffing it, and MLH may be
+  out of stock. **If no sensor: follow "No-parts contingency" in docs/PLAN.md.** Don't let the
+  user wait at the desk more than 10-15 min; run `scripts/smoke_test.py` steps 1-7 (no parts
+  needed) meanwhile. Smoke test not yet run on the real device as of this note.
+- Sat ~5:30 PM: repo set up from the cloud planning session; 11 mock tests passing.
 
 ## FREE-WILi library facts (verified by reading freewili-python 0.0.51 source)
 - `FreeWili.find_first()` returns a `result.Result`; use `.expect()`/`.unwrap()`; `fw.open()` / `fw.close()`
