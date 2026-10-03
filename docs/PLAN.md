@@ -125,6 +125,11 @@ Optional UART demo: user's Arduino TX -> GPIO9 (UART1 RX), grounds tied together
 6. Second bug for depth: pull the SDA jumper and ask again: "Nothing answered. Check SDA (GPIO16) first."
    (Plug it back in: both 0x14 and 0x44 reappear.)
 
+## Rehearsal checks (do these before recording the backup video)
+- Unplug SDA and ask Probe to scan: it should report "nothing answered" within a few seconds.
+- Briefly hold SDA to GND and scan again: it must return within a few seconds (a stuck-bus
+  verdict or an error), not hang. If it hangs, fix that before the demo.
+
 ## Pitch outline (3 minutes, from the workshop deck's structure)
 1. Hook + user (15 s): Sam at 2 a.m.
 2. Problem + 2 data points (20 s): ~33M Arduino users; chatbots can't see hardware so they guess.
@@ -140,6 +145,15 @@ Close with one line: "Stop guessing. Measure."
   Probe is an independent instrument for when your board/code is the problem, and it's for beginners.
 - *Why not a Saleae logic analyzer?* Great tool, $500+, no conversational diagnosis; you
   still need to know what you're looking at.
+- *Why not send a photo of the breadboard to ChatGPT?* Vision models often miss a jumper that is
+  one row off, and a photo cannot show whether a chip is answering. Probe measures the bus.
+- *Why not a $10 USB logic analyzer + PulseView?* It gives exact timing, but no guidance: a
+  beginner still has to know what a missing ACK looks like. Probe says what is wrong in plain English.
+- *What about ground?* In the demo the sensors are powered from the FREE-WILi, so ground is shared.
+  Any separately powered board must have its GND tied to the FREE-WILi's GND.
+- *What about 5V vs 3.3V parts?* The FREE-WILi 1 header has level shifters that follow whatever
+  voltage is on pin 4 (1.1-5.5V): a jumper selects 3.3V or 5V. It is a physical jumper on this
+  model, not a software setting, so don't say Probe "sets" the voltage.
 - *What if the AI is wrong?* Every claim is backed by a shown measurement; tool calls print live;
   `--no-ai` mode gives the raw report.
 - *Business?* Lab-kit add-on for university courses / makerspaces; software for FREE-WILi owners.
