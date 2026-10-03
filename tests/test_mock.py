@@ -68,3 +68,18 @@ def test_grove_lcd_copy_paste_bug():
 def test_grove_baro_identified_as_bmp280():
     report = diagnose.full_report(MockProbe("grove_baro"))
     assert report["identify"][0]["identified_as"] == "BMP280"
+
+
+def test_freewili_kit_identifies_bmm350_through_dummy_bytes():
+    report = diagnose.full_report(MockProbe("freewili_kit"))
+    assert report["scan"]["addresses_found"] == ["0x14", "0x44"]
+    bmm = report["identify"][0]
+    assert bmm["identified_as"] == "BMM350"
+    assert any("SHT40" in c for c in report["identify"][1]["candidates"])
+
+
+def test_bmm150_tutorial_bug():
+    """Student copied a BMM150 tutorial (0x13) but has a BMM350 at 0x14."""
+    check = diagnose.check_expected_address(MockProbe("freewili_kit"), 0x13)
+    assert check["verdict"] == "mismatch"
+    assert "BMM350" in check["hint"]

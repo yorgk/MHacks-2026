@@ -59,7 +59,7 @@ def identify(probe: Probe, address: int) -> dict:
     out: dict = {"address": hexb(address), "candidates": devices.candidates_for(address), "id_checks": []}
     for check in checks:
         try:
-            value = probe.read_i2c(address, check.register, 1)[0]
+            value = probe.read_i2c(address, check.register, check.offset + 1)[check.offset]
         except ProbeError as ex:
             out["id_checks"].append({"part": check.part, "error": str(ex)})
             continue

@@ -31,6 +31,11 @@ Everything below was gathered before building. Web sources are listed at the end
   detection events (pedestrian, face), own 1.54" LCD, microSD.
 - **Bottlenose Orca** (rev 1, 5/30/2025): ESP32 Wi-Fi/BLE; WebSocket terminal bridge, BLE terminal, Wi-Fi/BLE scans.
 - **Maestro Orca**: debug/development tool. **Antennas**: 315, 433, 915 MHz. Orca whale tail badge. Male-to-male jumpers.
+- **Borrowed from the FREE-WILi table (Sat ~7 PM):** DFRobot SEN0622 (Bosch BMM350 magnetometer,
+  I2C 0x14/0x15, CHIP_ID reg 0x00 = 0x33 after 2 I2C dummy bytes), SHT40 temp/humidity (I2C 0x44,
+  command-based), F-F and F-M jumpers, ST X-NUCLEO-NFC08A1 (ST25R3916B NFC reader, SPI by default,
+  Arduino Uno R3 connector). Header pins unsoldered. (Fun fact: FREE-WILi 2 has a BMM350 and an
+  SHT40 on board, so these are the same sensors their new device uses.)
 - FREE-WILi 2 (released Sept 2026; NOT what the user has): RP2350s, ESP32-C5, CM0 Linux, touchscreen, NFC, LoRa, CAN FD.
 
 ## Past FREE-WILi hackathon projects (don't repeat)
@@ -101,4 +106,6 @@ Medium-high: Fetch.ai (cash). High: ElevenLabs, MLH Gemini (everyone uses them).
 - Saleae skill: https://blog.adafruit.com/2026/01/30/a-claude-code-skill-to-analyze-saleae-logic-mso-signals/ · Flux Copilot: https://flux.ai/p/blog/flux-copilot-the-first-ai-powered-hardware-design-assistant
 - Arduino 33M users: https://www.eenewseurope.com/en/arduino-open-source-report-2025-ecosystem-growth/ · EECS 373: https://ece.engin.umich.edu/?p=1911
 - MLH hardware lab list: https://guide.mlh.io/organizer-resources/hardware-lab-contents
+- DFRobot SEN0622 (BMM350, I2C 0x14/0x15): https://www.digikey.com/en/products/detail/dfrobot/SEN0622/26460569 · BMM350 chip ID 0x33: https://community.bosch-sensortec.com/mems-sensors-forum-jrmujtaw/post/bmm350-issue-different-chip-id-infinite-loop-in-otp-dump-after-boot-qm9ZCNlegJnTe1A
+- X-NUCLEO-NFC08A1 (SPI default): https://www.st.com/resource/en/user_manual/um3007-getting-started-with-the-nfc-card-reader-expansion-board-based-on-st25r3916b-for-stm32-and-stm8-nucleos-stmicroelectronics.pdf
 - Medication adherence: https://www.mobihealthnews.com/news/study-adheretechs-smart-pill-bottle-intervention-improves-adherence-without-major-additional

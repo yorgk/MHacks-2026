@@ -63,7 +63,7 @@ probe/devices.py   I2C address -> likely parts, ID-register checks, classic addr
 probe/diagnose.py  Deterministic checks (no AI): scan, identify, expected-address check, pin sanity, full report
 probe/agent.py     Gemini chat whose tools wrap diagnose/hw; also `--no-ai` offline report mode (demo fallback)
 scripts/smoke_test.py  First-hour hardware check: install, find, firmware, LEDs, display, tone, pins, I2C scan
-tests/test_mock.py     11 tests against MockProbe scenarios (no hardware, no API key). All passing at hand-off.
+tests/test_mock.py     13 tests against MockProbe scenarios (no hardware, no API key). All passing at hand-off.
 ```
 
 ### Run it
@@ -82,14 +82,21 @@ python -m pytest -q tests
 ```
 Mock scenarios (`PROBE_MOCK_SCENARIO`): `ok` (ADXL345 at 0x53), `wrong_address` (LCD backpack
 at 0x3F), `empty`, `stuck_bus`, `grove_lcd` (Grove LCD RGB Backlight at 0x3E + 0x62),
-`grove_baro` (Grove BMP280 at 0x77).
+`grove_baro` (Grove BMP280 at 0x77), **`freewili_kit` (the real parts: BMM350 at 0x14 + SHT40 at 0x44)**.
 
-**Hardware actually available:** the MLH Hardware Lab rental menu at the venue is all Grove
-modules. Planned rentals: Grove LCD RGB Backlight (main demo bug: `demo/grove_lcd_sketch.ino`
-uses a generic LiquidCrystal_I2C 0x27 tutorial instead of `rgb_lcd` at 0x3E) and Grove
-Temperature and Barometer (BMP280). See the MLH table in docs/PLAN.md.
+**Hardware actually in hand** (MLH desk never showed; these came from the FREE-WILi table):
+DFRobot SEN0622 **BMM350 magnetometer (I2C 0x14, chip ID 0x33 after 2 dummy bytes)**, **SHT40
+temp/humidity (I2C 0x44)**, female-female + female-male jumpers, and an ST X-NUCLEO-NFC08A1 NFC
+board (SPI, skip tonight). **The sensors' header pins are unsoldered.** Main demo bug:
+`demo/bmm350_sketch.ino` (BMM150 tutorial address 0x13 + wrong chip). Details in docs/PLAN.md
+"Parts IN HAND".
 
 ## Status log (newest first; update this as things happen)
+- **Sat ~7 PM:** MLH desk never came back. Got parts from the FREE-WILi table: BMM350 (SEN0622),
+  SHT40, F-F and F-M jumpers, X-NUCLEO-NFC08A1 (skip). Header pins need soldering: ask the
+  FREE-WILi table for an iron, or jury-rig for testing. **Next: smoke test steps 1-7, then wire
+  both sensors and run `smoke_test.py --i2c`, expecting 0x14 and 0x44.** Repo updated with BMM350
+  dummy-byte ID check, `freewili_kit` mock scenario and the BMM150-tutorial demo bug (13 tests pass).
 - **Sat ~6 PM:** user waiting at the MLH Hardware Lab desk; nobody staffing it, and MLH may be
   out of stock. **If no sensor: follow "No-parts contingency" in docs/PLAN.md.** Don't let the
   user wait at the desk more than 10-15 min; run `scripts/smoke_test.py` steps 1-7 (no parts

@@ -153,6 +153,7 @@ class MockProbe:
       stuck_bus      every address "answers" (SDA shorted low / floating bus)
       grove_lcd      MLH Grove LCD RGB Backlight: text at 0x3E + backlight at 0x62
       grove_baro     MLH Grove Temperature and Barometer (BMP280) at 0x77
+      freewili_kit   the parts actually in hand: BMM350 (DFRobot SEN0622) at 0x14 + SHT40 at 0x44
     """
 
     def __init__(self, scenario: str | None = None) -> None:
@@ -168,6 +169,8 @@ class MockProbe:
             "stuck_bus": {a: {} for a in range(0x08, 0x78)},
             "grove_lcd": {0x3E: {}, 0x62: {}},
             "grove_baro": {0x77: {0xD0: 0x58}},
+            # BMM350 I2C reads return 2 dummy bytes first, so CHIP_ID (0x33) arrives as the 3rd byte.
+            "freewili_kit": {0x14: {0x00: 0x00, 0x01: 0x00, 0x02: 0x33}, 0x44: {}},
         }.get(self.scenario, {})
 
     def scan_i2c(self) -> list[int]:

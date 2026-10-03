@@ -14,7 +14,7 @@ python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\a
 pip install -r requirements.txt
 cp .env.example .env                                  # add GEMINI_API_KEY
 python scripts/smoke_test.py                          # check the hardware first
-python -m probe.agent --code demo/sketch.ino          # chat with Probe
+python -m probe.agent --code demo/bmm350_sketch.ino   # chat with Probe (BMM350 + SHT40 demo)
 python -m probe.agent --no-ai --expect 0x27           # offline report, no API key
 PROBE_MOCK=1 python -m probe.agent --no-ai            # no hardware at all
 python -m pytest -q tests

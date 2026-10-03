@@ -5,7 +5,7 @@ Hand-off written Sat Oct 3, ~5:30 PM. About 18 hours to the noon deadline, minus
 ## Timeline with go/no-go checkpoints
 | By (Sat/Sun) | Done when | If not |
 |---|---|---|
-| Sat 7:45 PM | Parts in hand (breadboard, I2C sensor, 2x 4.7k resistors). Back inside before the 8 PM lock. | Use whatever sensor the FREE-WILi table lends you |
+| Sat 7:45 PM | ~~Parts in hand~~ **DONE**: BMM350 + SHT40 from the FREE-WILi table. Next: solder (or jury-rig) their header pins. | |
 | Sat 8:00 PM | `smoke_test.py` steps 1-7 PASS | Go to the FREE-WILi table with the output (firmware/driver) |
 | **Sat 9:30 PM: GO/NO-GO** | Sensor wired and `smoke_test.py --i2c` finds its address | Pivot: drop I2C, demo pins + UART only, or switch to fallback idea (see RESEARCH.md) |
 | Sun 12:30 AM | Typed AI chat works end-to-end on the real device (scan, identify, verdict) | Demo the `--no-ai` report instead |
@@ -17,7 +17,29 @@ Hand-off written Sat Oct 3, ~5:30 PM. About 18 hours to the noon deadline, minus
 | **Sun 12:00 PM** | **Deadline** | |
 | Sun 12:30-2:30 PM | Judging; stay at the table | |
 
-## Parts list
+## Parts IN HAND (Sat ~7 PM, from the FREE-WILi sponsor table; MLH desk never came back)
+| Part | Bus / address | Notes |
+|---|---|---|
+| **DFRobot SEN0622: Bosch BMM350 3-axis magnetometer** (Fermion board) | I2C **0x14** (ADSEL low, default) or 0x15 | CHIP_ID register 0x00 = **0x33**, but BMM350 I2C reads start with **2 dummy bytes** (Probe handles this: `IdCheck(offset=2)`). Use **3.3V**. |
+| **SHT40 temp/humidity breakout** | I2C **0x44** | Command-based chip (no registers). Probe identifies it by address. Reading real temperature needs "write 0xFD, wait ~10 ms, read 6 bytes", which `read_i2c(addr, reg, n)` probably can't do (no delay between write and read); treat as an experiment, not a demo dependency. 3.3V is safe. |
+| Female-to-female + female-to-male jumpers (+ the user's male-to-male) | | Enough to wire both sensors straight to the FREE-WILi header without a breadboard. |
+| ST X-NUCLEO-NFC08A1 (ST25R3916B NFC reader board) | **SPI by default** (I2C needs hardware mods), Arduino Uno R3 / Nucleo connector | **Skip tonight.** Different bus, complex chip init, meant to stack on an STM32 Nucleo. At most a "next step: SPI support" slide. |
+
+**Header pins are NOT soldered** on the two sensor boards ("solder kind" pins). Loose pins make
+flaky contacts, which is the worst thing for a live demo. Fix, in order:
+1. Ask the FREE-WILi table for a soldering iron (they handed out unsoldered parts; they or
+   MHacks/MLH staff likely have one). 4 pins per board, ~5 minutes.
+2. No iron: push the header pins through the board holes and put the female jumper ends on
+   them, angled so the pins press against the hole walls; tape it down. OK for testing, risky on stage.
+**Both sensors can share the bus:** SDA to SDA, SCL to SCL, VCC to VCC, GND to GND. A scan should
+show 0x14 and 0x44. That's a nicer demo than one device.
+
+**Demo bug for this hardware:** `demo/bmm350_sketch.ino`. A student followed a BMM150 compass
+tutorial (address 0x13, chip-ID register 0x40), but the board is a BMM350 at 0x14 (CHIP_ID
+register 0x00 = 0x33, needs the DFRobot_BMM350 library). Probe should catch the wrong address
+**and** the wrong chip. Mock: `PROBE_MOCK_SCENARIO=freewili_kit`.
+
+## Original parts list (written before we knew what was available)
 | Item | Why | Have? |
 |---|---|---|
 | FREE-WILi 1 + USB data cable | The instrument | Yes |
@@ -29,7 +51,7 @@ Hand-off written Sat Oct 3, ~5:30 PM. About 18 hours to the noon deadline, minus
 | Optional: Grove-to-jumper cable | Only if the sensor is a Grove module | If Grove |
 | Not needed | WILEye camera, Bottlenose, Maestro, antennas, whale tail badge | Leave in bag |
 
-### What to rent from the MLH Hardware Lab menu (photo from the venue, Sat evening)
+### MLH Hardware Lab menu (NOT obtained: desk was unstaffed; kept for reference)
 All MLH modules are **Grove** (4-pin plug: black GND, red VCC, white SDA, yellow SCL). Most
 Grove I2C boards already have pull-up resistors, so the 4.7k resistors are probably not needed.
 | Rent | Bus / address | Why |
@@ -81,6 +103,7 @@ RESEARCH.md.
 
 ### Wiring (verify pin locations on the physical header first)
 ```
+For the BMM350 + SHT40 in hand: both on the same bus, both at 3.3V.
 Sensor VCC -> FREE-WILi IO voltage pin (3.3V for most breakouts)
 Sensor GND -> FREE-WILi GND
 Sensor SDA -> GPIO16 (I2C0 SDA)
@@ -90,14 +113,17 @@ Optional UART demo: user's Arduino TX -> GPIO9 (UART1 RX), grounds tied together
 ```
 
 ## Demo script (aim for under 90 s inside the 3-minute pitch)
-1. "This is Sam, an EECS 373 student. It's 2 a.m., their LCD shows nothing, office hours closed."
-2. Show the breadboard with a planted bug. Run `python -m probe.agent --code demo/sketch.ino`.
-3. Type or say "why isn't my LCD showing anything?" The terminal shows `[probe] scan_i2c_bus()`,
-   `check_code_address('0x27')`, `read_user_code(...)` as it measures.
-4. Probe answers: "Your LCD backpack is at 0x3F, your sketch uses 0x27 (line 8). Change it."
-   The FREE-WILi screen shows the headline, LEDs go red, low beep.
-5. Fix it, ask again: green LEDs, high beep.
-6. Second bug for depth: pull the SDA wire, then "nothing answered, check SDA (GPIO16) first".
+1. "This is Sam, an EECS 373 student. It's 2 a.m., their compass project just prints
+   'Compass not found!', and office hours are closed."
+2. Show the two sensors wired to the FREE-WILi. Run `python -m probe.agent --code demo/bmm350_sketch.ino`.
+3. Type or say "why can't my sketch find the compass?" The terminal shows `[probe] scan_i2c_bus()`,
+   `identify_i2c_device('0x14')`, `check_code_address('0x13')`, `read_user_code(...)` as it measures.
+4. Probe answers: "Your magnetometer is a BMM350 at 0x14 (I read its chip ID: 0x33). Your sketch
+   uses 0x13 and BMM150 registers from a BMM150 tutorial. Change the address to 0x14 and switch to
+   the DFRobot_BMM350 library." The FREE-WILi screen shows the headline, LEDs go red, low beep.
+5. "Fixed" version: ask again with the corrected expectation: green LEDs, high beep.
+6. Second bug for depth: pull the SDA jumper and ask again: "Nothing answered. Check SDA (GPIO16) first."
+   (Plug it back in: both 0x14 and 0x44 reappear.)
 
 ## Pitch outline (3 minutes, from the workshop deck's structure)
 1. Hook + user (15 s): Sam at 2 a.m.
