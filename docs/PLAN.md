@@ -1,0 +1,91 @@
+# Build plan, parts, demo and pitch
+
+Hand-off written Sat Oct 3, ~5:30 PM. About 18 hours to the noon deadline, minus sleep.
+
+## Timeline with go/no-go checkpoints
+| By (Sat/Sun) | Done when | If not |
+|---|---|---|
+| Sat 7:45 PM | Parts in hand (breadboard, I2C sensor, 2x 4.7k resistors). Back inside before the 8 PM lock. | Use whatever sensor the FREE-WILi table lends you |
+| Sat 8:00 PM | `smoke_test.py` steps 1-7 PASS | Go to the FREE-WILi table with the output (firmware/driver) |
+| **Sat 9:30 PM: GO/NO-GO** | Sensor wired and `smoke_test.py --i2c` finds its address | Pivot: drop I2C, demo pins + UART only, or switch to fallback idea (see RESEARCH.md) |
+| Sun 12:30 AM | Typed AI chat works end-to-end on the real device (scan, identify, verdict) | Demo the `--no-ai` report instead |
+| Sun 2:30 AM | Demo circuit with 2 planted bugs + `show_result` on device screen/LEDs. Then sleep. | |
+| Sun 8:00 AM | Stretch (pick at most one): ElevenLabs voice, or Pillow status images on screen | Skip it |
+| **Sun 9:00 AM** | **Feature freeze.** Record 60-90 s backup demo video (screen + phone video of device) | |
+| Sun 10:30 AM | Devpost draft submitted (can edit until noon) | |
+| Sun 11:30 AM | Final Devpost + Notability screenshots + repo link | |
+| **Sun 12:00 PM** | **Deadline** | |
+| Sun 12:30-2:30 PM | Judging; stay at the table | |
+
+## Parts list
+| Item | Why | Have? |
+|---|---|---|
+| FREE-WILi 1 + USB data cable | The instrument | Yes |
+| Male-to-male jumpers | Breadboard <-> FREE-WILi header (works if the FREE-WILi header is female; if it has male pins you need female-to-male) | Yes |
+| Breadboard | Demo circuit | Need |
+| 1-2 I2C sensors/displays | The "broken" circuit. Best: a 16x2 LCD with I2C backpack (classic 0x27 vs 0x3F bug), BME280, MPU-6050, ADXL345, or SparkFun 9DoF (freewili has an example for it) | Need |
+| 2x 4.7 kΩ resistors (2.2k-10k OK) | I2C pull-ups (many breakouts have them built in) | Need |
+| Optional: LED + 220 Ω | Pin-driving demo | Optional |
+| Optional: Grove-to-jumper cable | Only if the sensor is a Grove module | If Grove |
+| Not needed | WILEye camera, Bottlenose, Maestro, antennas, whale tail badge | Leave in bag |
+
+### Where to get parts (in order)
+1. **MLH Hardware Lab (MHacks hardware checkout).** The hacker handbook says MLH provides
+   hardware first-come-first-served. Ask the MHacks help desk (Central Collaboration Area of the
+   Duderstadt, people in MHacks Team shirts) or MLH staff where checkout is; usually you leave
+   an ID. MLH's published lab list includes Grove sensors (a "3-axis digital" accelerometer,
+   likely an ADXL345 at 0x53, and a Grove LCD, which is I2C), Arduinos and Raspberry Pis, but
+   only a few of each, so go early. Grove parts need a Grove-to-jumper cable.
+2. **FREE-WILi sponsor table.** They want people building with it, likely have sensors,
+   breadboards and pinout knowledge, and they are the judges for the FREE-WILi prize.
+3. **Discord / other hackers.** Ask in the MHacks Discord.
+4. **EECS / BBB labs** (Beyster Building, next to the Duderstadt). Weekend access may need an
+   MCard; mind the 8 PM door lock.
+5. Last resort: Micro Center, Madison Heights (~45 min drive). Check hours first.
+
+### Wiring (verify pin locations on the physical header first)
+```
+Sensor VCC -> FREE-WILi IO voltage pin (3.3V for most breakouts)
+Sensor GND -> FREE-WILi GND
+Sensor SDA -> GPIO16 (I2C0 SDA)
+Sensor SCL -> GPIO17 (I2C0 SCL)
+(+ 4.7k from SDA to VCC and from SCL to VCC if the breakout has no pull-ups)
+Optional UART demo: user's Arduino TX -> GPIO9 (UART1 RX), grounds tied together
+```
+
+## Demo script (aim for under 90 s inside the 3-minute pitch)
+1. "This is Sam, an EECS 373 student. It's 2 a.m., their LCD shows nothing, office hours closed."
+2. Show the breadboard with a planted bug. Run `python -m probe.agent --code demo/sketch.ino`.
+3. Type or say "why isn't my LCD showing anything?" The terminal shows `[probe] scan_i2c_bus()`,
+   `check_code_address('0x27')`, `read_user_code(...)` as it measures.
+4. Probe answers: "Your LCD backpack is at 0x3F, your sketch uses 0x27 (line 8). Change it."
+   The FREE-WILi screen shows the headline, LEDs go red, low beep.
+5. Fix it, ask again: green LEDs, high beep.
+6. Second bug for depth: pull the SDA wire, then "nothing answered, check SDA (GPIO16) first".
+
+## Pitch outline (3 minutes, from the workshop deck's structure)
+1. Hook + user (15 s): Sam at 2 a.m.
+2. Problem + 2 data points (20 s): ~33M Arduino users; chatbots can't see hardware so they guess.
+3. Solution (20 s): an AI lab partner that measures before it answers.
+4. Live demo (90 s).
+5. Why FREE-WILi (15 s): independent, known-good instrument with adjustable I/O voltage, I2C/UART/GPIO in one box.
+6. Next steps (15 s): passive bus sniffing via the FPGA logic analyzer, more protocols, voice.
+Close with one line: "Stop guessing. Measure."
+
+## Likely judge questions
+- *Why not ChatGPT?* It can't measure; it guesses from your description.
+- *Why not Claude Code + an I2C scanner sketch?* That needs a working board and reflashing.
+  Probe is an independent instrument for when your board/code is the problem, and it's for beginners.
+- *Why not a Saleae logic analyzer?* Great tool, $500+, no conversational diagnosis; you
+  still need to know what you're looking at.
+- *What if the AI is wrong?* Every claim is backed by a shown measurement; tool calls print live;
+  `--no-ai` mode gives the raw report.
+- *Business?* Lab-kit add-on for university courses / makerspaces; software for FREE-WILi owners.
+
+## Submission checklist
+- [ ] Devpost: title, problem, solution, how it works, built with (FREE-WILi, Python, Gemini), repo link, video
+- [ ] Opt into: Best Use of FREE-WILi, Beyond the Code (Hardware), MLH Gemini, Notability, side quests
+      (check Devpost for a cap on how many prizes you can enter)
+- [ ] Notability: tag "Notability", note how Notability Pro was used + at least 2 screenshots
+- [ ] Teammate list correct (solo); table number filled in
+- [ ] Backup video recorded before 9:30 AM

@@ -1,0 +1,86 @@
+"""Common I2C devices: which addresses they live at and how to confirm their identity.
+
+Most I2C sensors have an "ID" (a.k.a. WHO_AM_I / CHIP_ID) register that always returns
+the same value. Reading it is the fastest way to prove *which* chip answered at an address.
+Addresses below are the common defaults; many parts have a pin that moves them to an
+alternate address. Treat matches as candidates, not certainties.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class IdCheck:
+    part: str
+    register: int
+    expected: int
+
+
+# address -> list of likely parts (human-readable)
+CANDIDATES: dict[int, list[str]] = {
+    0x0D: ["QMC5883L magnetometer"],
+    0x18: ["LIS3DH accelerometer (SDO low)"],
+    0x19: ["LIS3DH accelerometer (SDO high)"],
+    0x1D: ["ADXL345 accelerometer (ALT high)"],
+    0x1E: ["HMC5883L magnetometer", "LSM303 magnetometer"],
+    0x23: ["BH1750 light sensor"],
+    0x27: ["PCF8574 I2C LCD backpack (16x2/20x4 LCD)"],
+    0x29: ["VL53L0X distance sensor", "TSL2591 light sensor"],
+    0x30: ["Grove RGB LCD backlight (v5)"],
+    0x36: ["MAX17048 fuel gauge"],
+    0x38: ["AHT10/AHT20 temp/humidity"],
+    0x3C: ["SSD1306 OLED display"],
+    0x3D: ["SSD1306 OLED display (alt)"],
+    0x3E: ["Grove 16x2 LCD text controller (AIP31068)"],
+    0x3F: ["PCF8574A I2C LCD backpack (16x2/20x4 LCD)"],
+    0x40: ["INA219 current sensor", "HDC1080 temp/humidity", "PCA9685 PWM driver", "Si7021"],
+    0x44: ["SHT3x/SHT4x temp/humidity"],
+    0x45: ["SHT3x temp/humidity (alt)"],
+    0x48: ["ADS1115 ADC", "TMP102 temperature", "PCF8591 ADC"],
+    0x50: ["AT24Cxx EEPROM"],
+    0x53: ["ADXL345 accelerometer (Grove 3-axis digital accelerometer)"],
+    0x5A: ["MLX90614 IR thermometer", "CCS811 air quality"],
+    0x5C: ["BH1750 light sensor (alt)"],
+    0x62: ["Grove RGB LCD backlight (PCA9633)"],
+    0x68: ["MPU-6050 IMU", "ICM-20948 IMU", "DS3231 RTC"],
+    0x69: ["MPU-6050 IMU (AD0 high)", "ICM-20948 IMU (SparkFun 9DoF default)"],
+    0x6A: ["LSM6DS3/LSM6DSO IMU"],
+    0x6B: ["LSM6DS3/LSM6DSO IMU (alt)"],
+    0x70: ["TCA9548A I2C multiplexer", "HT16K33 LED driver"],
+    0x76: ["BME280/BMP280/BME680 environmental sensor"],
+    0x77: ["BME280/BMP280/BME680 environmental sensor (alt)"],
+}
+
+# address -> ID-register checks to try (first match wins)
+ID_CHECKS: dict[int, list[IdCheck]] = {
+    0x18: [IdCheck("LIS3DH", 0x0F, 0x33)],
+    0x19: [IdCheck("LIS3DH", 0x0F, 0x33)],
+    0x1D: [IdCheck("ADXL345", 0x00, 0xE5)],
+    0x53: [IdCheck("ADXL345", 0x00, 0xE5)],
+    0x68: [IdCheck("MPU-6050", 0x75, 0x68), IdCheck("ICM-20948", 0x00, 0xEA)],
+    0x69: [IdCheck("MPU-6050", 0x75, 0x68), IdCheck("ICM-20948", 0x00, 0xEA)],
+    0x6A: [IdCheck("LSM6DS3", 0x0F, 0x69), IdCheck("LSM6DSO", 0x0F, 0x6C)],
+    0x6B: [IdCheck("LSM6DS3", 0x0F, 0x69), IdCheck("LSM6DSO", 0x0F, 0x6C)],
+    0x76: [IdCheck("BME280", 0xD0, 0x60), IdCheck("BMP280", 0xD0, 0x58), IdCheck("BME680", 0xD0, 0x61)],
+    0x77: [IdCheck("BME280", 0xD0, 0x60), IdCheck("BMP280", 0xD0, 0x58), IdCheck("BME680", 0xD0, 0x61)],
+}
+
+# Classic beginner mix-ups: the address you wrote vs. the address the part is really at.
+COMMON_ADDRESS_MIXUPS: dict[frozenset[int], str] = {
+    frozenset({0x27, 0x3F}): "PCF8574 vs PCF8574A LCD backpacks ship at 0x27 or 0x3F depending on the chip variant.",
+    frozenset({0x68, 0x69}): "MPU-6050/ICM-20948 move between 0x68 and 0x69 with the AD0 pin.",
+    frozenset({0x76, 0x77}): "BME280/BMP280 move between 0x76 and 0x77 with the SDO pin.",
+    frozenset({0x3C, 0x3D}): "SSD1306 OLEDs use 0x3C or 0x3D depending on a solder jumper.",
+    frozenset({0x1D, 0x53}): "ADXL345 uses 0x53 (ALT low) or 0x1D (ALT high).",
+    frozenset({0x18, 0x19}): "LIS3DH uses 0x18 or 0x19 depending on SDO.",
+}
+
+
+def candidates_for(address: int) -> list[str]:
+    return CANDIDATES.get(address, ["Unknown device (not in the built-in table)"])
+
+
+def mixup_hint(expected: int, found: int) -> str | None:
+    return COMMON_ADDRESS_MIXUPS.get(frozenset({expected, found}))

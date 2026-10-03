@@ -1,0 +1,5 @@
+freewili>=0.0.51
+# freewili pins typing-extensions==4.12.2; google-genai 1.67+ crashes on import with that version.
+google-genai>=1.50,<1.67
+python-dotenv>=1.0
+pytest>=8.0
