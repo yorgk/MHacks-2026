@@ -36,6 +36,8 @@ HEADER_PINS: dict[int, str] = {
 }
 OUTPUT_PINS = {8, 11, 13, 14, 15, 25, 27}
 NUM_BOARD_LEDS = 7
+BEEP_MS = 80
+BEEP_AMPLITUDE = 0.05
 
 STATUS_COLORS: dict[str, tuple[int, int, int]] = {
     "ok": (0, 60, 0),
@@ -137,8 +139,9 @@ class FreeWiliProbe:
             _unwrap(self._dev.gui.set_led_color(led, r, g, b, 0, 0), "Setting LEDs")
 
     def beep(self, ok: bool) -> None:
-        freq = 1320 if ok else 220
-        _unwrap(self._dev.io.audio.tone(freq, 200, 0.5), "Playing a tone")
+        # Deliberately a short, quiet blip: this runs in shared rooms and at a judging table.
+        freq = 1320 if ok else 440
+        _unwrap(self._dev.io.audio.tone(freq, BEEP_MS, BEEP_AMPLITUDE), "Playing a tone")
 
     def uart_write(self, data: bytes) -> None:
         _unwrap(self._dev.io.uart.u_art_write(data), "UART write")
