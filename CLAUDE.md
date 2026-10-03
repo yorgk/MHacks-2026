@@ -93,6 +93,15 @@ board (SPI, skip tonight). **The sensors' header pins are unsoldered.** Main dem
 "Parts IN HAND".
 
 ## Status log (newest first; update this as things happen)
+- **Sat evening: GO. BMM350 answers on the real bus.** Wired alone, no solder, no breadboard:
+  pin 6 (3.3V) -> sensor VCC pin top, same pin's bottom stub -> pin 4 (IO voltage), pin 19 GND,
+  pin 10 SDA, pin 8 SCL. Scan finds 0x14; `read_i2c(0x14, 0x00, 3)` returns `00 00 33` (chip ID
+  0x33 after 2 dummy bytes, as predicted); `python -m probe.agent --no-ai --expect 0x13` gives
+  identified_as BMM350 + address mismatch with the BMM150 hint. So scan parsing and `read_i2c`
+  are now verified on hardware. **Contact is flaky**: one report run saw "nothing answered"
+  between two good runs (20/20 scans good right after). SHT40 is not wired (no way to split the
+  bus); plan on the BMM350 alone. **Next: Gemini key in `.env`, then the AI chat on the device;
+  record a backup video as soon as it works.**
 - **Sat ~7:15 PM (laptop clock): smoke test steps 1-8 PASS on the real device.** The road there:
   the device arrived running an OG app called "wilidoro" that never reads USB serial, so the old
   `freewili` library hung forever on its first write. Flashed official **OG firmware v024**
