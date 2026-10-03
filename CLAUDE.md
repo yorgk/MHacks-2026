@@ -68,6 +68,8 @@ tests/test_mock.py     13 tests against MockProbe scenarios (no hardware, no API
 
 ### Run it
 ```bash
+# Python version: use 3.12 (NOT 3.14). On 3.14 pip tries to compile pydantic-core from Rust and
+# fails. This laptop: `py install 3.12` was run, so create the venv with `py -V:3.12 -m venv .venv`.
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env    # add GEMINI_API_KEY (free key: https://aistudio.google.com/apikey)
@@ -92,6 +94,15 @@ board (SPI, skip tonight). **The sensors' header pins are unsoldered.** Main dem
 "Parts IN HAND".
 
 ## Status log (newest first; update this as things happen)
+- **Sat ~6:30 PM (laptop clock): smoke test BLOCKED at step 3 by non-stock firmware.** Env is
+  set up (see "Python version" below), 13 mock tests pass, steps 1-2 pass (device `FW5171`:
+  Main = COM4, Display = COM3, FPGA/FTDI = COM5). Step 3 hangs forever: both RP2040s run a custom
+  firmware called **"wilidoro"** that only prints `[wilidoro] main alive` / `[wilidoro] alive
+  (panel=ok leds=ok audio=ok imu=ok) heap free=...` once a second and never reads its USB serial
+  port, so the `freewili` library's first write blocks (pyserial on Windows has no write timeout).
+  **Fix: reflash stock FREE-WILi firmware on BOTH processors** (ask the FREE-WILi table for the
+  UF2s / updater; docs say hold the red button while plugging in USB to get the RP2040 UF2 drive).
+  Not done yet: it overwrites wilidoro, so it's the user's call. Then rerun `scripts/smoke_test.py`.
 - **Sat ~7 PM:** MLH desk never came back. Got parts from the FREE-WILi table: BMM350 (SEN0622),
   SHT40, F-F and F-M jumpers, X-NUCLEO-NFC08A1 (skip). Header pins need soldering: ask the
   FREE-WILi table for an iron, or jury-rig for testing. **Next: smoke test steps 1-7, then wire
