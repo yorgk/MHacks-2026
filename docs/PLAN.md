@@ -104,10 +104,10 @@ RESEARCH.md.
 ### Wiring (verify pin locations on the physical header first)
 ```
 For the BMM350 + SHT40 in hand: both on the same bus, both at 3.3V.
-Sensor VCC -> FREE-WILi IO voltage pin (3.3V for most breakouts)
-Sensor GND -> FREE-WILi GND
-Sensor SDA -> GPIO16 (I2C0 SDA)
-Sensor SCL -> GPIO17 (I2C0 SCL)
+FREE-WILi pin 6 (3.3V out) -> breadboard + rail -> FREE-WILi pin 4 (IO voltage in) AND each sensor VCC
+FREE-WILi pin 19 or 20 (GND) -> breadboard - rail -> each sensor GND
+Sensor SDA -> pin 10 (GPIO16, I2C0 SDA)
+Sensor SCL -> pin 8 (GPIO17, I2C0 SCL)
 (+ 4.7k from SDA to VCC and from SCL to VCC if the breakout has no pull-ups)
 Optional UART demo: user's Arduino TX -> GPIO9 (UART1 RX), grounds tied together
 ```
