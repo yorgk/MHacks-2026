@@ -90,7 +90,7 @@ Probe needs **any one I2C device**. Don't wait at the MLH desk more than 10-15 m
 3. **The user's own Orcas.** Plug in the Bottlenose or WILEye and run
    `python scripts/smoke_test.py --i2c`; if an address shows up, that's a free target (untested idea).
 4. **The FREE-WILi's internal I2C bus** (display CPU: LIS3DH accelerometer, MCP7940 RTC,
-   PCAL6416 expander): `python scripts/smoke_test.py --onboard` tries `poll_i2c(Display)`.
+   PCAL6416 expander): (The `--onboard` smoke-test option was removed in the OneWili port: OG firmware hosts I2C on MAIN only.)
    If it lists addresses, the whole AI path can be built and tested tonight with zero parts
    (not a breadboard demo, but it unblocks development). Unverified whether firmware supports it.
 5. **Zero-parts loopback demo** with the male-to-male jumpers:

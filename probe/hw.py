@@ -1,20 +1,24 @@
 """Hardware layer: everything that touches the FREE-WILi lives here.
 
 Two implementations with the same interface:
-  - FreeWiliProbe: the real device over USB (pip package `freewili`)
+  - FreeWiliProbe: the real device over USB, running OG firmware (ogfw), via the `onewili` package
   - MockProbe:     a fake device so the agent/tests run without hardware (PROBE_MOCK=1)
 
 Every method returns plain Python data (or raises ProbeError) so the agent layer never
-has to know about the freewili library's Result types.
+has to know about the onewili library's Result types.
+
+The old `freewili` pip package only speaks the deprecated v73 firmware and hangs on OG firmware,
+so it is not used any more.
 """
 
 from __future__ import annotations
 
 import os
+import queue
 import time
 from typing import Protocol
 
-# Header pins exposed on the FREE-WILi 1 connector (from freewili.types.GPIO_MAP).
+# Header pins exposed on the FREE-WILi 1 connector.
 HEADER_PINS: dict[int, str] = {
     8: "GPIO8 / UART1 TX (out)",
     9: "GPIO9 / UART1 RX (in)",
@@ -60,87 +64,106 @@ class Probe(Protocol):
 
 
 def _unwrap(result, what: str):
-    """Convert a freewili `result.Result` into a value or a ProbeError."""
+    """Convert an onewili `result.Result` into a value or a ProbeError."""
     if result.is_ok():
         return result.unwrap()
     raise ProbeError(f"{what} failed: {result.unwrap_err()}")
 
 
 class FreeWiliProbe:
-    """The real FREE-WILi 1 over USB."""
+    """The real FREE-WILi 1 over USB (OG firmware, OneWili API)."""
 
     def __init__(self) -> None:
         try:
-            from freewili import FreeWili
+            import onewili
         except ImportError as ex:  # pragma: no cover - depends on local install
-            raise ProbeError("The `freewili` package is not installed. Run: pip install -r requirements.txt") from ex
-        found = FreeWili.find_first()
-        if found.is_err():
+            raise ProbeError("The `onewili` package is not installed. Run: pip install -r requirements.txt") from ex
+        try:
+            self._dev = onewili.connect()
+        except Exception as ex:  # RuntimeError (not found) or serial.SerialException (port busy)
             raise ProbeError(
-                f"No FREE-WILi found over USB ({found.unwrap_err()}). Is it plugged in, powered on, "
-                "and not open in another program (serial monitor, another script)?"
-            )
-        self._fw = found.unwrap()
-        _unwrap(self._fw.open(), "Opening the FREE-WILi")
+                f"No FREE-WILi found over USB ({ex}). Is it plugged in, powered on, "
+                "and not open in another program (serial monitor, App Explorer, another script)?"
+            ) from ex
+        self._transport = self._dev._transport
+
+    def _raw(self, command: str, what: str) -> str:
+        """Send a menu command and return the response text.
+
+        Used where the generated onewili binding drops the arguments or the reply
+        (`i2c_read()` takes no address, `i2c_poll()` returns None).
+        """
+        self._transport.flush_queues()
+        self._transport.send(command)
+        frame = self._transport.wait_frame()
+        if frame is None:
+            raise ProbeError(f"{what} failed: no reply from the FREE-WILi")
+        if not frame.success:
+            raise ProbeError(f"{what} failed: {frame.response or 'no ACK'}")
+        return frame.response
+
+    def firmware(self) -> str:
+        return self._raw("?", "Reading the firmware version")
 
     def scan_i2c(self) -> list[int]:
-        return sorted(int(a) for a in _unwrap(self._fw.poll_i2c(), "I2C scan"))
+        # Reply is hex bytes: a count, then one byte per address that answered.
+        found = [int(token, 16) for token in self._raw("i\\i\\p", "I2C scan").split()]
+        return sorted(found[1:])
 
     def read_i2c(self, address: int, register: int, length: int) -> bytes:
-        return bytes(_unwrap(self._fw.read_i2c(address, register, length), f"I2C read 0x{address:02X}"))
+        reply = self._raw(f"i\\i\\r {address:02X} {register:02X} {length}", f"I2C read 0x{address:02X}")
+        return bytes(int(token, 16) for token in reply.split())
 
     def write_i2c(self, address: int, register: int, data: bytes) -> None:
-        _unwrap(self._fw.write_i2c(address, register, data), f"I2C write 0x{address:02X}")
+        _unwrap(self._dev.io.i2c.i2c_write(address, register, data), f"I2C write 0x{address:02X}")
 
     def read_pins(self) -> dict[int, int]:
-        values = _unwrap(self._fw.get_io(), "Reading pins")
-        return {pin: values[pin] for pin in HEADER_PINS}
+        bitfield = _unwrap(self._dev.io.gpio.read_all(), "Reading pins")
+        return {pin: (bitfield >> pin) & 1 for pin in HEADER_PINS}
 
     def set_pin(self, pin: int, state: str) -> None:
-        from freewili.types import IOMenuCommand
-
-        commands = {"high": IOMenuCommand.High, "low": IOMenuCommand.Low, "toggle": IOMenuCommand.Toggle}
+        gpio = self._dev.io.gpio
+        commands = {"high": gpio.set_io_high, "low": gpio.set_io_low, "toggle": gpio.set_io_toggle}
         if state not in commands:
             raise ProbeError(f"state must be one of {sorted(commands)}")
-        _unwrap(self._fw.set_io(pin, commands[state]), f"Setting GPIO{pin} {state}")
+        _unwrap(commands[state](pin), f"Setting GPIO{pin} {state}")
 
     def show_text(self, text: str) -> None:
-        _unwrap(self._fw.show_text_display(text), "Showing text on the display")
+        _unwrap(self._dev.gui.show_text(text), "Showing text on the display")
 
     def set_status(self, status: str) -> None:
         r, g, b = STATUS_COLORS.get(status, STATUS_COLORS["off"])
         for led in range(NUM_BOARD_LEDS):
-            _unwrap(self._fw.set_board_leds(led, r, g, b), "Setting LEDs")
+            _unwrap(self._dev.gui.set_led_color(led, r, g, b, 0, 0), "Setting LEDs")
 
     def beep(self, ok: bool) -> None:
         freq = 1320 if ok else 220
-        _unwrap(self._fw.play_audio_tone(freq, 0.2, 0.5), "Playing a tone")
+        _unwrap(self._dev.io.audio.tone(freq, 200, 0.5), "Playing a tone")
+
+    def uart_write(self, data: bytes) -> None:
+        _unwrap(self._dev.io.uart.u_art_write(data), "UART write")
 
     def uart_listen(self, seconds: float) -> bytes:
         """Capture whatever arrives on UART1 RX (GPIO9) for `seconds`. Experimental."""
-        from freewili.types import UART1Data
-
         received = bytearray()
-
-        def on_event(_event_type, _frame, data) -> None:
-            if isinstance(data, UART1Data):
-                received.extend(data.data)
-
-        self._fw.set_event_callback(on_event)
-        # Note from the freewili examples: on v54 firmware enable_uart_events is a toggle.
-        _unwrap(self._fw.enable_uart_events(True), "Enabling UART events")
+        events = self._transport.events
+        # "Enable UART Read Events" is a toggle; received bytes arrive as [*uart1 ...] event frames.
+        _unwrap(self._dev.io.uart.toggle_stream(), "Enabling UART events")
         try:
             end = time.monotonic() + seconds
-            while time.monotonic() < end:
-                self._fw.process_events()
-                time.sleep(0.05)
+            while (remaining := end - time.monotonic()) > 0:
+                try:
+                    frame = events.get(timeout=min(remaining, 0.05))
+                except queue.Empty:
+                    continue
+                if frame.path == "*uart1":
+                    received.extend(int(token, 16) for token in frame.response.split())
         finally:
-            self._fw.enable_uart_events(False)
-            self._fw.set_event_callback(None)
+            self._dev.io.uart.toggle_stream()
         return bytes(received)
 
     def close(self) -> None:
-        self._fw.close()
+        self._dev.close()
 
 
 class MockProbe:

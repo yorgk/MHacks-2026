@@ -10,7 +10,7 @@ green/red LEDs.
 
 ## Quick start
 ```bash
-python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
+python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate (use Python 3.12)
 pip install -r requirements.txt
 cp .env.example .env                                  # add GEMINI_API_KEY
 python scripts/smoke_test.py                          # check the hardware first
@@ -21,7 +21,7 @@ python -m pytest -q tests
 ```
 
 ## How it works
-`probe/hw.py` talks to the FREE-WILi (or a mock), `probe/diagnose.py` turns raw measurements
+`probe/hw.py` talks to the FREE-WILi over the OneWili API on OG firmware (or to a mock), `probe/diagnose.py` turns raw measurements
 into findings, and `probe/agent.py` gives those findings to Gemini as tools, so every answer is
 grounded in something that was actually measured.
 

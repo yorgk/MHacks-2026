@@ -47,7 +47,7 @@ The verdict also shows on the FREE-WILi screen with green/red LEDs and a beep.
 1. **"Why not just have Claude Code / an Arduino run an I2C-scanner sketch?"** Partly fair: a
    dev with Claude Code + an ESP32 can flash a scanner and read serial. Our answer: Probe is an
    **independent, known-good instrument**. It works when your board won't boot or your code is
-   the thing that's broken, needs no reflashing, sets its own I/O voltage (1.1-5.5V), and is
+   the thing that's broken, needs no reflashing, and is
    aimed at beginners who don't use agentic coding tools. Doctors ask the patient how they feel
    (that's reading your board's serial) but still use a stethoscope (that's Probe).
 2. The strongest differentiator, **passively sniffing** the bus between the user's MCU and the
@@ -58,22 +58,23 @@ The verdict also shows on the FREE-WILi screen with green/red LEDs and a beep.
 
 ## Code map
 ```
-probe/hw.py        FreeWiliProbe (real, via `freewili`) + MockProbe (fake device). Only file that imports freewili.
+probe/hw.py        FreeWiliProbe (real, via `onewili`, OG firmware) + MockProbe (fake device). Only file that imports onewili.
 probe/devices.py   I2C address -> likely parts, ID-register checks, classic address mix-ups (0x27 vs 0x3F etc.)
 probe/diagnose.py  Deterministic checks (no AI): scan, identify, expected-address check, pin sanity, full report
 probe/agent.py     Gemini chat whose tools wrap diagnose/hw; also `--no-ai` offline report mode (demo fallback)
-scripts/smoke_test.py  First-hour hardware check: install, find, firmware, LEDs, display, tone, pins, I2C scan
+scripts/smoke_test.py  Hardware check, runs through probe/hw.py: install, find, firmware, LEDs, display, tone, pins, I2C scan
 tests/test_mock.py     13 tests against MockProbe scenarios (no hardware, no API key). All passing at hand-off.
 ```
 
 ### Run it
 ```bash
+# This laptop's .venv is Python 3.12 (`py -V:3.12 -m venv .venv`; `py install 3.12` already done).
+# 3.14 failed with the old `freewili` dependency pins and is untested with the current requirements.
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env    # add GEMINI_API_KEY (free key: https://aistudio.google.com/apikey)
 python scripts/smoke_test.py                      # FIRST. Real hardware check.
 python scripts/smoke_test.py --i2c                # re-scan after wiring a sensor
-python scripts/smoke_test.py --onboard            # no parts: try the FREE-WILi's internal I2C bus
 python scripts/smoke_test.py --loopback           # no parts: jumper 25->26 and 8->9 first
 python -m probe.agent --no-ai --expect 0x27       # offline report on the real device
 python -m probe.agent --code path/to/sketch.ino   # AI chat, may read the sketch
@@ -92,6 +93,17 @@ board (SPI, skip tonight). **The sensors' header pins are unsoldered.** Main dem
 "Parts IN HAND".
 
 ## Status log (newest first; update this as things happen)
+- **Sat ~7:15 PM (laptop clock): smoke test steps 1-8 PASS on the real device.** The road there:
+  the device arrived running an OG app called "wilidoro" that never reads USB serial, so the old
+  `freewili` library hung forever on its first write. Flashed official **OG firmware v024**
+  (`ogfw_main-024.uf2`, SHA-256 verified) with the vendor's `fwogcli`, then **ported `probe/hw.py`
+  and the smoke test from `freewili` to `onewili`** (see "Firmware" and "OneWili facts" below).
+  `python -m probe.agent --no-ai --expect 0x14` runs end to end on the device (correctly reports
+  "nothing answered": no sensor wired yet). 13 mock tests pass. **Next: solder/jury-rig the sensor
+  header pins, wire BMM350 + SHT40, run `smoke_test.py --i2c`, expect 0x14 and 0x44.**
+  Unverified until a sensor is wired: the I2C scan reply format with devices present, `read_i2c`,
+  and the UART loopback. The user should also confirm by eye/ear that the LEDs, text and beep
+  really happened (the firmware only reports that it accepted the commands).
 - **Sat ~7 PM:** MLH desk never came back. Got parts from the FREE-WILi table: BMM350 (SEN0622),
   SHT40, F-F and F-M jumpers, X-NUCLEO-NFC08A1 (skip). Header pins need soldering: ask the
   FREE-WILi table for an iron, or jury-rig for testing. **Next: smoke test steps 1-7, then wire
@@ -103,31 +115,58 @@ board (SPI, skip tonight). **The sensors' header pins are unsoldered.** Main dem
   needed) meanwhile. Smoke test not yet run on the real device as of this note.
 - Sat ~5:30 PM: repo set up from the cloud planning session; 11 mock tests passing.
 
-## FREE-WILi library facts (verified by reading freewili-python 0.0.51 source)
-- `FreeWili.find_first()` returns a `result.Result`; use `.expect()`/`.unwrap()`; `fw.open()` / `fw.close()`
-  or `with fw:`. Every call returns `Result`, never raises on device errors. `hw._unwrap` converts.
-- I2C: `poll_i2c()` -> tuple of found addresses; `read_i2c(addr, reg, n)` -> bytes;
-  `write_i2c(addr, reg, data)`. Pins: `get_io()` -> 32 bit values; `set_io(pin, IOMenuCommand.High/Low/Toggle/Pwm, freq, duty)`.
-- Header pins (GPIO_MAP): 8 UART1 TX, 9 UART1 RX, 10 CTS, 11 RTS, 12 SPI RX, 13 SPI CS,
-  14 SPI SCLK, 15 SPI TX, **16 I2C0 SDA, 17 I2C0 SCL**, 25 out, 26 in, 27 out.
-- Display (FREE-WILi 1): only `show_text_display(text)` or `show_gui_image(path.fwi)`. No dynamic UI.
-  MHacks 2025 winner "Wattson" composited images with Pillow, converted with `fwi-convert`,
-  uploaded with `send_file`, shown with `show_gui_image`. Only do this if core is done.
-- LEDs: `set_board_leds(index 0-6, r, g, b)`. Tone: `play_audio_tone(hz, seconds, amplitude)`.
-- UART: `enable_uart_events(True)` + `set_event_callback` + `process_events()`; v54 firmware:
-  max ~22 bytes per UART write and `enable_uart_events` acts as a toggle.
-- CLIs installed with the package: `fwi-serial`, `fwi-convert`.
-- **Only one program can hold the serial port.** Close the FREE-WILi GUI / serial monitors.
-- Dependency trap: `freewili` pins `typing-extensions==4.12.2`; google-genai >=1.67 crashes on
-  import with it, so requirements pin `google-genai<1.67`. Don't "fix" by upgrading.
+## Firmware (learned the hard way on Sat evening)
+- FREE-WILi 1 has **two firmware lines**. The old one (`release_v73`, what the `freewili` pip
+  package speaks) is **deprecated by the vendor**. The current one is **OG firmware** (`ogfw`,
+  v024 = MAIN 024 / DISPLAY 020), driven by the **OneWili API**. This device runs OG v024.
+- "OG apps" are single `<name>_main.uf2` files that replace the whole firmware. If the device
+  boots an app that isn't `ogfw` (e.g. it prints `[wilidoro] main alive`), no API works: reflash.
+- Reflash (official tools live in the git-ignored `.tools/` folder; re-download from
+  https://github.com/freewili/fwOGAppExplorer/releases and https://github.com/freewili/freewili-firmware/releases):
+  `.tools\FwOGExplorerV2\fwogcli.exe list` then
+  `.tools\FwOGExplorerV2\fwogcli.exe flash .tools\ogfw_main-024.uf2 --cpu main --device 1`.
+  One UF2 flashes both CPUs (the display half is embedded). Keep USB plugged in throughout.
+- `fwogcli install freewili-original-deprecated` would go back to v73, but it removes the OG
+  display bootloader. Don't, unless OneWili turns out to be missing something essential.
+- Healthy device USB names: `FWOG main ogfw 024` (COM4 here), `FWOG display ogfw 020` (COM3), FTDI (COM5).
+
+## OneWili facts (verified on the real device, onewili 0.1.0 @ b0eeccd)
+- Not on PyPI: installed from GitHub, pinned in `requirements.txt`. `onewili.connect()` finds the
+  board and opens the MAIN port; menus are attributes (`dev.io.i2c`, `dev.io.gpio`, `dev.gui`, ...).
+  Calls return `result.Result`; `hw._unwrap` converts. `connect()` itself raises if nothing is found.
+- **Two generated bindings are broken, so `hw.py` sends the raw menu command instead (`_raw`)**:
+  `i2c_read()` takes no arguments (wire format is `i\i\r <addrHex> <regHex> <lenDec>`), and
+  `i2c_poll()` throws the reply away (wire `i\i\p`; reply is hex bytes: count, then addresses).
+- I2C: `i2c_write(addr, reg, data)` works as generated. Settings: `dev.io.i2c.settings.pull_ups(1)`
+  and `.frequency(hz)` exist (the pull-ups call returned Ok; effect not yet measured).
+- Pins: `dev.io.gpio.read_all()` -> int bitfield (bit n = GPIO n); `set_io_high/low/toggle(pin)`;
+  `set_pwm(pin, freq, duty)`. **`set_io_voltage_source` returns NotSupported on this board**, and no
+  other way to set the I/O voltage has been found yet: don't pitch "adjustable I/O voltage" unless proven.
+- Header pins: 8 UART1 TX, 9 UART1 RX, 10 CTS, 11 RTS, 12 SPI RX, 13 SPI CS, 14 SPI SCLK,
+  15 SPI TX, **16 I2C0 SDA, 17 I2C0 SCL**, 25 out, 26 in, 27 out.
+- Display: `dev.gui.show_text(text)` (overlay, truncated to fit), `dev.gui.clear_display()`,
+  `dev.gui.show_fwi_image(file)`. There are also GUI panels/controls/dialogs menus (`dev.gui.panels`,
+  `.controls`, `.dialogs.message_box`): possibly real dynamic UI, unexplored. Only if core is done.
+- LEDs: `dev.gui.set_led_color(index 0-6, r, g, b, duration_ms, mode)` (mode 0 = plain color).
+  Tone: `dev.io.audio.tone(hz, duration_ms, amplitude)`. There is also `dev.io.audio.speak(text)`
+  (on-device speech, untested): a possible free "voice" feature without ElevenLabs.
+- UART: `dev.io.uart.u_art_write(bytes)`; `toggle_stream()` toggles RX events, which arrive as
+  `[*uart1 <hex bytes>]` frames on `dev._transport.events`. Untested (needs the 8->9 jumper).
+- Logic analyzer exists in the API (`dev.io.logic_analyzer`, binary frames over the FTDI port,
+  `onewili.connect(binary=True)`), plus an I2C monitor event (`i2cmon`). So passive bus sniffing
+  may be more reachable than risk #2 says. Still a stretch; don't promise it.
+- **Only one program can hold the serial port.** Close App Explorer / serial monitors.
+- `google-genai` is still pinned `<1.67` (that pin came from the old `freewili` dependency; it
+  works, so it was left alone).
 - Gemini model is `GEMINI_MODEL` (default `gemini-2.5-flash`). If it errors as retired, list
   current models in AI Studio and change the env var.
 
 ## Unknowns to verify on the real hardware (ask the user / FREE-WILi table)
 - Physical location of GPIO16/17, GND and the VCC/IO-voltage pin on the header (docs:
   https://docs.freewili.com, GPIO page). Male-to-male jumpers fit a female header + breadboard.
-- Whether the I/O voltage must be set (3.3V for most breakouts) and whether internal pull-ups exist.
-- Firmware version (smoke test step 3). If calls fail oddly, ask the FREE-WILi table to update firmware.
+- Which header pin supplies 3.3V for the sensors (`set_io_voltage_source` is NotSupported on
+  this board). Ask the FREE-WILi table or check the silkscreen before powering a sensor.
+- Whether the I2C pull-up setting is actually on by default (both breakouts likely have their own).
 
 ## Working rules for this session
 - Commit early and often with clear messages; judges check that code was written during the event.
