@@ -55,3 +55,16 @@ def test_tools_run_against_mock(tmp_path: pathlib.Path):
     assert "error" in tools["set_header_pin"](16, "high")  # SDA is not an output
     shown = tools["show_result"]("Use 0x3F, not 0x27", "fail")
     assert shown["status"] == "fail" and probe.status == "fail"
+
+
+def test_grove_lcd_copy_paste_bug():
+    """Student copied a generic LiquidCrystal_I2C tutorial (0x27) but rented a Grove LCD (0x3E)."""
+    check = diagnose.check_expected_address(MockProbe("grove_lcd"), 0x27)
+    assert check["verdict"] == "mismatch"
+    assert check["addresses_found"] == ["0x3E", "0x62"]
+    assert "rgb_lcd" in check["hint"]
+
+
+def test_grove_baro_identified_as_bmp280():
+    report = diagnose.full_report(MockProbe("grove_baro"))
+    assert report["identify"][0]["identified_as"] == "BMP280"

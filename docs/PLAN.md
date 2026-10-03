@@ -29,6 +29,20 @@ Hand-off written Sat Oct 3, ~5:30 PM. About 18 hours to the noon deadline, minus
 | Optional: Grove-to-jumper cable | Only if the sensor is a Grove module | If Grove |
 | Not needed | WILEye camera, Bottlenose, Maestro, antennas, whale tail badge | Leave in bag |
 
+### What to rent from the MLH Hardware Lab menu (photo from the venue, Sat evening)
+All MLH modules are **Grove** (4-pin plug: black GND, red VCC, white SDA, yellow SCL). Most
+Grove I2C boards already have pull-up resistors, so the 4.7k resistors are probably not needed.
+| Rent | Bus / address | Why |
+|---|---|---|
+| **LCD RGB Backlight** (top pick) | I2C, 0x3E (text) + 0x62 or 0x30 (backlight) | Visible output, two addresses on one board, and a very realistic bug: students copy a generic `LiquidCrystal_I2C` 0x27 tutorial, but Grove needs `rgb_lcd` at 0x3E. Demo: `demo/grove_lcd_sketch.ino`. Some versions want 5V. |
+| **Temperature and Barometer Sensor** | I2C, BMP280 at 0x77 (ID reg 0xD0 = 0x58) | Has an ID register, so `identify` can prove which chip it is |
+| Optional: I2C Color Sensor | I2C, TCS34725 at 0x29 (ID via 0x92 = 0x44) | Second device on the bus for a richer scan |
+| Optional: 3-Axis Digital Accelerometer | I2C, 0x4C (MMA7660) or 0x53 (ADXL345), depends on version | Scan tells you which |
+| Skip | Light, UV, sound, air quality, rotary, moisture (analog); ultrasonic, buttons (digital); NFC (complex); motors/servos | Not I2C, or off-scope |
+
+Also ask for: **Grove-to-male-jumper cables** (or Grove-to-female; male jumpers can be pushed
+into a Grove plug's sockets as a hack), and a breadboard if they have one.
+
 ### Where to get parts (in order)
 1. **MLH Hardware Lab (MHacks hardware checkout).** The hacker handbook says MLH provides
    hardware first-come-first-served. Ask the MHacks help desk (Central Collaboration Area of the

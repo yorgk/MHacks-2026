@@ -78,6 +78,14 @@ python -m probe.agent --code path/to/sketch.ino   # AI chat, may read the sketch
 PROBE_MOCK=1 PROBE_MOCK_SCENARIO=wrong_address python -m probe.agent   # no hardware
 python -m pytest -q tests
 ```
+Mock scenarios (`PROBE_MOCK_SCENARIO`): `ok` (ADXL345 at 0x53), `wrong_address` (LCD backpack
+at 0x3F), `empty`, `stuck_bus`, `grove_lcd` (Grove LCD RGB Backlight at 0x3E + 0x62),
+`grove_baro` (Grove BMP280 at 0x77).
+
+**Hardware actually available:** the MLH Hardware Lab rental menu at the venue is all Grove
+modules. Planned rentals: Grove LCD RGB Backlight (main demo bug: `demo/grove_lcd_sketch.ino`
+uses a generic LiquidCrystal_I2C 0x27 tutorial instead of `rgb_lcd` at 0x3E) and Grove
+Temperature and Barometer (BMP280). See the MLH table in docs/PLAN.md.
 Mock scenarios: `ok` (ADXL345 at 0x53), `wrong_address` (LCD backpack at 0x3F), `empty`
 (nothing answers), `stuck_bus` (every address answers / SDA low).
 

@@ -151,6 +151,8 @@ class MockProbe:
       wrong_address  a PCF8574A LCD backpack at 0x3F (user's code usually says 0x27)
       empty          nothing answers (unpowered sensor, SDA/SCL swapped, missing pull-ups)
       stuck_bus      every address "answers" (SDA shorted low / floating bus)
+      grove_lcd      MLH Grove LCD RGB Backlight: text at 0x3E + backlight at 0x62
+      grove_baro     MLH Grove Temperature and Barometer (BMP280) at 0x77
     """
 
     def __init__(self, scenario: str | None = None) -> None:
@@ -164,6 +166,8 @@ class MockProbe:
             "wrong_address": {0x3F: {}},
             "empty": {},
             "stuck_bus": {a: {} for a in range(0x08, 0x78)},
+            "grove_lcd": {0x3E: {}, 0x62: {}},
+            "grove_baro": {0x77: {0xD0: 0x58}},
         }.get(self.scenario, {})
 
     def scan_i2c(self) -> list[int]:
