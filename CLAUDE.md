@@ -161,12 +161,30 @@ board (SPI, skip tonight). **The sensors' header pins are unsoldered.** Main dem
 - Gemini model is `GEMINI_MODEL` (default `gemini-2.5-flash`). If it errors as retired, list
   current models in AI Studio and change the env var.
 
+## Header pinout (from https://docs.freewili.com/hardware/pinout/, the FREE-WILi 2 page with FREE-WILi 1 notes)
+The 20-pin header is pin-compatible between FREE-WILi 1 and 2 except pins 16/18 (SWD on v1).
+| Pin | Signal | Pin | Signal |
+|---|---|---|---|
+| 1 | SPI1 CS (GPIO13) | 2 | **5V out** |
+| 3 | GPIO27 (out) | 4 | **IO voltage in** |
+| 5 | UART1 RX (GPIO9) | 6 | **3.3V out** |
+| 7 | UART1 CTS (GPIO10) | 8 | **I2C0 SCL (GPIO17)** |
+| 9 | UART1 TX (GPIO8) | 10 | **I2C0 SDA (GPIO16)** |
+| 11 | UART1 RTS (GPIO11) | 12 | SPI1 RX (GPIO12) |
+| 13 | SPI1 TX (GPIO15) | 14 | GPIO26 (in) |
+| 15 | SPI1 SCLK (GPIO14) | 16 | SWD clock on v1 |
+| 17 | GPIO25 (out) | 18 | SWD data on v1 |
+| 19 | **GND** | 20 | **GND** |
+- **FREE-WILi 1 sets the IO voltage with a physical jumper: pin 4 to pin 6 for 3.3V** (2 to 4 for 5V,
+  or an external 1.1-5.5V supply on pin 4). Without a voltage on pin 4 the level shifters on the
+  header are unpowered and I2C will not work. So pin 6 (3.3V) must feed BOTH pin 4 and the sensors:
+  use a breadboard power rail.
+- I2C goes through a PCA9517 buffer with software-controllable 10k pull-ups (on by default here).
+- Buffers: 24 mA per pin recommended at 3.3V.
+
 ## Unknowns to verify on the real hardware (ask the user / FREE-WILi table)
-- Physical location of GPIO16/17, GND and the VCC/IO-voltage pin on the header (docs:
-  https://docs.freewili.com, GPIO page). Male-to-male jumpers fit a female header + breadboard.
-- Which header pin supplies 3.3V for the sensors (`set_io_voltage_source` is NotSupported on
-  this board). Ask the FREE-WILi table or check the silkscreen before powering a sensor.
-- Whether the I2C pull-up setting is actually on by default (both breakouts likely have their own).
+- Which corner of the header is pin 1 (the docs page does not say): check the silkscreen or ask.
+- Whether a jumper is already fitted across pins 4 and 6.
 
 ## Working rules for this session
 - Commit early and often with clear messages; judges check that code was written during the event.
