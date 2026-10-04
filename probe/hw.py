@@ -81,7 +81,8 @@ class FreeWiliProbe:
         except ImportError as ex:  # pragma: no cover - depends on local install
             raise ProbeError("The `onewili` package is not installed. Run: pip install -r requirements.txt") from ex
         try:
-            self._dev = onewili.connect()
+            # PROBE_SERIAL picks one unit when two are plugged in (e.g. the stand-in sensor rig).
+            self._dev = onewili.connect(serial=os.environ.get("PROBE_SERIAL") or None)
         except Exception as ex:  # RuntimeError (not found) or serial.SerialException (port busy)
             raise ProbeError(
                 f"No FREE-WILi found over USB ({ex}). Is it plugged in, powered on, "
