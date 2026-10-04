@@ -4,6 +4,7 @@ and they also power the offline `--no-ai` demo mode if the internet or API keys 
 
 from __future__ import annotations
 
+import re
 import time
 
 from . import devices
@@ -163,3 +164,42 @@ def overall_status(report: dict) -> str:
     if report["pins"].get("warnings"):
         return "warn"
     return "ok"
+
+
+def address_from_code(source: str) -> int | None:
+    """Best guess at the I2C address a sketch uses: a `#define ...ADDR... 0x..` line, else None."""
+    found = re.search(r"#define\s+\w*ADDR\w*\s+(0x[0-9A-Fa-f]{1,2})", source)
+    return int(found.group(1), 16) if found else None
+
+
+def _chip_pages(report: dict) -> list[str]:
+    """One or two narrow pages per device found: its name (if identified), then its address."""
+    pages: list[str] = []
+    identified = {item["address"]: item.get("identified_as") for item in report.get("identify", [])}
+    for address in report["scan"]["addresses_found"]:
+        if identified.get(address):
+            pages.append(identified[address])
+        pages.append(f"at {address}")
+    return pages
+
+
+def headline(report: dict) -> tuple[str, list[str]]:
+    """Boil a checkup report down to (status, pages) for the device screen.
+
+    The FREE-WILi text overlay shows ONE line of about 8 characters (7 capitals), so the verdict
+    is a list of very short pages that the device cycles through; the first is the verdict.
+    """
+    scan_verdict = report["scan"]["verdict"]
+    steady = report.get("connection_stability", {})
+    if steady.get("verdict") == "intermittent":
+        address, answered = min(steady["answered"].items(), key=lambda item: int(item[1].split()[0]))
+        return "warn", ["LOOSE", "WIRE", address, answered, "push pin"]
+    if scan_verdict == "nothing_answered":
+        return "fail", ["WIRING", "BUG", "no reply", "chk VCC", "and GND"]
+    if scan_verdict == "bus_fault":
+        return "fail", ["BUS", "FAULT", "SDA low"]
+    check = report.get("expected_address_check")
+    if check and check["verdict"] != "match":
+        fix = report["scan"]["addresses_found"][0]
+        return "fail", ["CODE BUG", "wire ok", *_chip_pages(report), "code has", check["expected"], f"use {fix}"]
+    return "ok", ["ALL GOOD", *_chip_pages(report), "matches" if check else "answers"]

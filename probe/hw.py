@@ -38,6 +38,37 @@ OUTPUT_PINS = {8, 11, 13, 14, 15, 25, 27}
 NUM_BOARD_LEDS = 7
 BEEP_MS = 80
 BEEP_AMPLITUDE = 0.05
+BUTTONS = ("gray", "yellow", "green", "blue", "red")  # order of the firmware's button report
+# The firmware's text overlay shows ONE line in a large proportional font. Measured on the real
+# screen: 8 digits, 8 lowercase letters or 7 capitals fit ("PROBE RE" was the visible part of
+# "PROBE READY"); the rest is cut off, and a newline would end the serial command.
+SCREEN_WIDTH = 8.0  # in lowercase-letter widths
+
+
+def text_width(text: str) -> float:
+    """Estimated width of `text` on the device, in lowercase-letter widths."""
+    width = 0.0
+    for char in text:
+        if char in " .,:;!'|il":
+            width += 0.5
+        elif char in "MW":
+            width += 1.5
+        elif char.isupper():
+            width += 1.07
+        elif char in "mw":
+            width += 1.3
+        else:
+            width += 1.0
+    return width
+
+
+def fit_screen(text: str, width: float = SCREEN_WIDTH) -> str:
+    """Make `text` a single line and cut it to what the screen can show."""
+    line = " ".join(text.split())
+    while line and text_width(line) > width:
+        line = line[:-1].rstrip()
+    return line
+
 
 STATUS_COLORS: dict[str, tuple[int, int, int]] = {
     "ok": (0, 60, 0),
@@ -62,6 +93,7 @@ class Probe(Protocol):
     def set_status(self, status: str) -> None: ...
     def beep(self, ok: bool) -> None: ...
     def uart_listen(self, seconds: float) -> bytes: ...
+    def read_buttons(self) -> dict[str, bool]: ...
     def close(self) -> None: ...
 
 
@@ -132,7 +164,11 @@ class FreeWiliProbe:
         _unwrap(commands[state](pin), f"Setting GPIO{pin} {state}")
 
     def show_text(self, text: str) -> None:
-        _unwrap(self._dev.gui.show_text(text), "Showing text on the display")
+        _unwrap(self._dev.gui.show_text(fit_screen(text)), "Showing text on the display")
+
+    def read_buttons(self) -> dict[str, bool]:
+        states = self._raw("g\\u", "Reading buttons").split()
+        return {name: state == "1" for name, state in zip(BUTTONS, states)}
 
     def set_status(self, status: str) -> None:
         r, g, b = STATUS_COLORS.get(status, STATUS_COLORS["off"])
@@ -224,7 +260,10 @@ class MockProbe:
         self.pins[pin] = {"high": 1, "low": 0}.get(state, 1 - self.pins[pin])
 
     def show_text(self, text: str) -> None:
-        self.display = text
+        self.display = fit_screen(text)
+
+    def read_buttons(self) -> dict[str, bool]:
+        return dict.fromkeys(BUTTONS, False)
 
     def set_status(self, status: str) -> None:
         self.status = status
