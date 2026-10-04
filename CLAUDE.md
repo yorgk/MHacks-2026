@@ -93,6 +93,14 @@ board (SPI, skip tonight). **The sensors' header pins are unsoldered.** Main dem
 "Parts IN HAND".
 
 ## Status log (newest first; update this as things happen)
+- **Sat night: switched to a second FREE-WILi (serial FW4551).** The first one (FW5171) dropped
+  off USB mid-scan while the user was adjusting the unsoldered sensor wiring (suspected 3.3V-to-GND
+  short at the exposed pin stubs; FW5171 has NOT been re-tested since, it may be fine). FW4551 was
+  on legacy v54 with no OG bootloader: converted with `fwogcli install freewili-og-bootloader
+  --device 1`, then `fwogcli flash .tools\ogfw_main-024.uf2 --cpu main --device 1`. After the flash,
+  wait until the display's USB name changes from `FWOG display bl` to `FWOG display ogfw 020`
+  (about a minute) before talking to it. Smoke test steps 1-8 pass on FW4551 (ports COM9/COM11).
+  Sensor contact on the unsoldered BMM350 only holds for seconds to half a minute: solder is the fix.
 - **Sat evening: GO. BMM350 answers on the real bus.** Wired alone, no solder, no breadboard:
   pin 6 (3.3V) -> sensor VCC pin top, same pin's bottom stub -> pin 4 (IO voltage), pin 19 GND,
   pin 10 SDA, pin 8 SCL. Scan finds 0x14; `read_i2c(0x14, 0x00, 3)` returns `00 00 33` (chip ID
