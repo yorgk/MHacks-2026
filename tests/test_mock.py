@@ -49,7 +49,7 @@ def test_tools_run_against_mock(tmp_path: pathlib.Path):
     probe = MockProbe("wrong_address")
     tools = {t.__name__: t for t in build_tools(probe, [sketch], verbose=False)}
     assert tools["scan_i2c_bus"]()["addresses_found"] == ["0x3F"]
-    assert "0x27" in tools["read_user_code"]("sketch.ino")["content"]
+    assert "0x27" in tools["read_user_code"]("sketch.ino")["content_with_line_numbers"]
     assert tools["check_code_address"]("0x27")["verdict"] == "mismatch"
     assert "error" in tools["read_i2c_register"]("0x27", "0x00", 1)  # no device there
     assert "error" in tools["set_header_pin"](16, "high")  # SDA is not an output
@@ -83,3 +83,31 @@ def test_bmm150_tutorial_bug():
     check = diagnose.check_expected_address(MockProbe("freewili_kit"), 0x13)
     assert check["verdict"] == "mismatch"
     assert "BMM350" in check["hint"]
+
+
+class FlakyProbe(MockProbe):
+    """Answers only on some scans, like a sensor with an unsoldered pin."""
+
+    def __init__(self, pattern: list[bool]) -> None:
+        super().__init__("freewili_kit")
+        self._pattern = iter(pattern)
+
+    def scan_i2c(self) -> list[int]:
+        return [0x14] if next(self._pattern) else []
+
+
+def test_stability_stable_device():
+    result = diagnose.stability(MockProbe("freewili_kit"), scans=10, interval=0)
+    assert result["verdict"] == "stable"
+    assert result["answered"] == {"0x14": "10 of 10", "0x44": "10 of 10"}
+
+
+def test_stability_flags_loose_connection():
+    result = diagnose.stability(FlakyProbe([True, False, False, True, False] * 4), scans=20, interval=0)
+    assert result["verdict"] == "intermittent"
+    assert result["answered"] == {"0x14": "8 of 20"}
+    assert "loose" in result["likely_causes"][0].lower()
+
+
+def test_stability_nothing_answered():
+    assert diagnose.stability(MockProbe("empty"), scans=5, interval=0)["verdict"] == "nothing_answered"
