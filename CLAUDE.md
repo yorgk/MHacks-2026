@@ -94,6 +94,16 @@ board (SPI, skip tonight). **The sensors' header pins are unsoldered.** Main dem
 "Parts IN HAND".
 
 ## Status log (newest first; update this as things happen)
+- **Sun ~1:30 AM: the user is switching to the teammates' project** (trash-can sensor for
+  `jaydenhuang9/MHacks`, cloned to `C:\Users\yk101\MHacks`; the user lifted the "don't touch that
+  repo" rule). Probe is PARKED, not abandoned: it works end to end on the two-FREE-WILi rig (AI
+  chat, three bug types, button mode with paged 8-character verdicts) and could still be
+  submitted with about 2 hours of write-up if MHacks allows a second submission. Not done for
+  Probe: UART listening, Devpost text, backup video. Hardware facts learned here that carry over:
+  OG firmware v024 on both units (FW5171, FW4551), OneWili API, accelerometer stream works
+  (`dev.io.sensors.enable_motion_stream`, events `*motion ax ay az gx gy gz` in mg), env /
+  orientation / field streams fail, WILEye camera menu does not exist on OG firmware, screen
+  overlay is one line of 7 capitals or 8 lowercase, no screenshots / images / panels.
 - **Sat ~11 PM: AI chat works end to end on the hardware; all three demo beats pass.** On the
   two-unit rig with `PROBE_SERIAL=FW4551` and `--code demo/bmm350_sketch.ino`:
   (1) stand-in at 0x14, sketch says 0x13 -> "wrong address AND wrong chip (BMM350, not BMM150)",
