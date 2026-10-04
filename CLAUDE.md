@@ -94,6 +94,21 @@ board (SPI, skip tonight). **The sensors' header pins are unsoldered.** Main dem
 "Parts IN HAND".
 
 ## Status log (newest first; update this as things happen)
+- **Sat ~11 PM: AI chat works end to end on the hardware; all three demo beats pass.** On the
+  two-unit rig with `PROBE_SERIAL=FW4551` and `--code demo/bmm350_sketch.ino`:
+  (1) stand-in at 0x14, sketch says 0x13 -> "wrong address AND wrong chip (BMM350, not BMM150)",
+  6 s; (2) stand-in off -> "0 devices, hardware problem, check VCC/GND", 6 s; (3) stand-in
+  toggled on/off by a script -> "answered 9 of 20, loose wire", 12 s. Beat 3 was a software
+  simulation of a loose wire; with a real wiggled jumper it is untested.
+  Changes: model is now **`gemini-3.5-flash-lite`** (`gemini-2.5-flash` free tier is 5
+  requests/minute and failed mid-demo; `gemini-2.5-flash-lite` is retired). New
+  `run_full_checkup` tool does everything in one call (fewer AI requests), new
+  `check_connection_stability` (repeated scans spaced over ~3 s; one scan takes only ~15 ms),
+  429 wait-and-retry, a fallback when the model returns no text, numbered code lines so
+  "change line N" is right. The demo sketch no longer has `// <-- bug` comments that gave the
+  answer away. 16 tests pass. `.env` has GEMINI, ELEVENLABS and NVIDIA keys; NVIDIA NIM is unused
+  (only wire it in as a fallback if Gemini limits bite again).
+  **Next: record the backup video on this rig; solder the BMM350 in the morning if an iron exists.**
 - **Sat late: reliable demo rig = two FREE-WILis, one as a stand-in sensor.** The unsoldered
   BMM350 only holds contact for seconds, so FW5171 now plays the sensor via the firmware's I2C
   slave mode and FW4551 is Probe. Verified: 60/60 scans find 0x14, chip-ID read returns
@@ -188,7 +203,7 @@ board (SPI, skip tonight). **The sensors' header pins are unsoldered.** Main dem
 - **Only one program can hold the serial port.** Close App Explorer / serial monitors.
 - `google-genai` is still pinned `<1.67` (that pin came from the old `freewili` dependency; it
   works, so it was left alone).
-- Gemini model is `GEMINI_MODEL` (default `gemini-2.5-flash`). If it errors as retired, list
+- Gemini model is `GEMINI_MODEL` (default `gemini-3.5-flash-lite`). If it errors as retired, list
   current models in AI Studio and change the env var.
 
 ## Header pinout (from https://docs.freewili.com/hardware/pinout/, the FREE-WILi 2 page with FREE-WILi 1 notes)

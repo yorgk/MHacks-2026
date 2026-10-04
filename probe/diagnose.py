@@ -4,6 +4,8 @@ and they also power the offline `--no-ai` demo mode if the internet or API keys 
 
 from __future__ import annotations
 
+import time
+
 from . import devices
 from .hw import HEADER_PINS, Probe, ProbeError
 
@@ -92,6 +94,38 @@ def check_expected_address(probe: Probe, expected: int) -> dict:
     hints = [h for a in found if (h := devices.mixup_hint(expected, a))]
     if hints:
         out["hint"] = hints[0]
+    return out
+
+
+def stability(probe: Probe, scans: int = 20, interval: float = 0.15) -> dict:
+    """Scan the bus `scans` times, `interval` seconds apart, and report how often each address answered.
+
+    One scan takes ~15 ms, so without the gap the whole check would fit inside a single
+    moment of good (or bad) contact and miss the flicker.
+
+    A device that answers only some of the time has a loose wire or flaky contact, which a
+    single scan reports as either "found" or "nothing there" depending on luck.
+    """
+    counts: dict[int, int] = {}
+    for i in range(scans):
+        if i and interval:
+            time.sleep(interval)
+        for address in probe.scan_i2c():
+            counts[address] = counts.get(address, 0) + 1
+    out: dict = {
+        "scans": scans,
+        "answered": {hexb(a): f"{n} of {scans}" for a, n in sorted(counts.items())},
+    }
+    if not counts:
+        out["verdict"] = "nothing_answered"
+    elif all(n == scans for n in counts.values()):
+        out["verdict"] = "stable"
+    else:
+        out["verdict"] = "intermittent"
+        out["likely_causes"] = [
+            "A loose jumper or a pin that is not soldered: the connection makes and breaks contact.",
+            "Check power and ground first (VCC, GND), then SDA and SCL. Press each joint and re-test.",
+        ]
     return out
 
 
