@@ -63,6 +63,7 @@ probe/devices.py   I2C address -> likely parts, ID-register checks, classic addr
 probe/diagnose.py  Deterministic checks (no AI): scan, identify, expected-address check, pin sanity, full report
 probe/agent.py     Gemini chat whose tools wrap diagnose/hw; also `--no-ai` offline report mode (demo fallback)
 scripts/smoke_test.py  Hardware check, runs through probe/hw.py: install, find, firmware, LEDs, display, tone, pins, I2C scan
+scripts/fake_sensor.py Makes a second FREE-WILi act as an I2C sensor (address / chip ID / off) to plant bugs on demand
 tests/test_mock.py     13 tests against MockProbe scenarios (no hardware, no API key). All passing at hand-off.
 ```
 
@@ -93,6 +94,18 @@ board (SPI, skip tonight). **The sensors' header pins are unsoldered.** Main dem
 "Parts IN HAND".
 
 ## Status log (newest first; update this as things happen)
+- **Sat late: reliable demo rig = two FREE-WILis, one as a stand-in sensor.** The unsoldered
+  BMM350 only holds contact for seconds, so FW5171 now plays the sensor via the firmware's I2C
+  slave mode and FW4551 is Probe. Verified: 60/60 scans find 0x14, chip-ID read returns
+  `00 00 33`, the report says BMM350 + address mismatch vs 0x13, and turning the stand-in off
+  gives "nothing answered". Wiring (male-to-male): on EACH unit its own pin 6 -> its own pin 4;
+  between units 19-19 (GND), 10-10 (SDA), 8-8 (SCL); each on its own USB cable. Both units showed
+  nothing until BOTH had the 6->4 jumper. Commands:
+  `python scripts/fake_sensor.py --serial FW5171 [--address 0x3F | --chip-id 0x32 | --off]`, and
+  run Probe with `PROBE_SERIAL=FW4551` (needed whenever two units are plugged in). FW5171 was not
+  damaged by the earlier USB dropout. Be upfront with judges that the second unit stands in for
+  the sensor; swap in the real BMM350 if it gets soldered. **Next: Gemini key in `.env`, AI chat,
+  loose-connection detection (repeat scans, report N of M).**
 - **Sat night: switched to a second FREE-WILi (serial FW4551).** The first one (FW5171) dropped
   off USB mid-scan while the user was adjusting the unsoldered sensor wiring (suspected 3.3V-to-GND
   short at the exposed pin stubs; FW5171 has NOT been re-tested since, it may be fine). FW4551 was
