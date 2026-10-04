@@ -4,6 +4,7 @@ and they also power the offline `--no-ai` demo mode if the internet or API keys 
 
 from __future__ import annotations
 
+import re
 import time
 
 from . import devices
@@ -163,3 +164,33 @@ def overall_status(report: dict) -> str:
     if report["pins"].get("warnings"):
         return "warn"
     return "ok"
+
+
+def address_from_code(source: str) -> int | None:
+    """Best guess at the I2C address a sketch uses: a `#define ...ADDR... 0x..` line, else None."""
+    found = re.search(r"#define\s+\w*ADDR\w*\s+(0x[0-9A-Fa-f]{1,2})", source)
+    return int(found.group(1), 16) if found else None
+
+
+def headline(report: dict) -> tuple[str, list[str]]:
+    """Boil a checkup report down to (status, pages) for the device screen.
+
+    The FREE-WILi text overlay shows ONE line of 18 characters, so the verdict is a list of
+    short pages that the device cycles through; the first page is the verdict itself.
+    """
+    scan_verdict = report["scan"]["verdict"]
+    steady = report.get("connection_stability", {})
+    if steady.get("verdict") == "intermittent":
+        address, answered = min(steady["answered"].items(), key=lambda item: int(item[1].split()[0]))
+        return "warn", ["LOOSE WIRE", f"{address}: {answered}", "press each jumper"]
+    if scan_verdict == "nothing_answered":
+        return "fail", ["WIRING BUG", "nothing answers", "check VCC + GND", "then SDA + SCL"]
+    if scan_verdict == "bus_fault":
+        return "fail", ["BUS FAULT", "all addrs answer", "SDA stuck low?", "check pull-ups"]
+    found = [f"{item.get('identified_as', 'chip')} at {item['address']}" for item in report.get("identify", [])]
+    found = found or [f"found {a}" for a in report["scan"]["addresses_found"]]
+    check = report.get("expected_address_check")
+    if check and check["verdict"] != "match":
+        fix = report["scan"]["addresses_found"][0]
+        return "fail", ["CODE BUG", "wiring is OK", *found, f"code uses {check['expected']}", f"fix: use {fix}"]
+    return "ok", ["ALL GOOD", *found, "matches code" if check else "answers OK"]

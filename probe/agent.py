@@ -20,7 +20,7 @@ import sys
 import time
 
 from . import diagnose
-from .hw import HEADER_PINS, OUTPUT_PINS, Probe, ProbeError, open_probe
+from .hw import HEADER_PINS, OUTPUT_PINS, Probe, ProbeError, fit_screen, open_probe
 
 SYSTEM_PROMPT = """\
 You are Probe, a patient lab partner for students debugging electronics on a breadboard.
@@ -149,12 +149,15 @@ def build_tools(probe: Probe, code_paths: list[pathlib.Path], verbose: bool = Tr
 
     @traced
     def show_result(headline: str, status: str) -> dict:
-        """Show the verdict on the FREE-WILi: headline (max ~60 chars) on screen, LEDs by status
-        ("ok" = green, "fail" = red, "warn" = yellow), plus a beep."""
-        probe.show_text(headline[:60])
+        """Show the verdict on the FREE-WILi screen and LEDs, plus a short beep.
+        headline: AT MOST 18 CHARACTERS, the screen shows one short line. Use a label such as
+        "CODE BUG: use 0x14", "WIRING BUG", "LOOSE WIRE" or "ALL GOOD".
+        status: "ok" = green, "fail" = red, "warn" = yellow."""
+        shown = fit_screen(headline)
+        probe.show_text(shown)
         probe.set_status(status if status in ("ok", "fail", "warn") else "warn")
         probe.beep(status == "ok")
-        return {"shown": headline[:60], "status": status}
+        return {"shown": shown, "status": status}
 
     tools = [
         run_full_checkup,
@@ -188,7 +191,8 @@ def _send(chat, message: str, retries: int = 2):
             time.sleep(wait)
 
 
-def run_chat(probe: Probe, code_paths: list[pathlib.Path]) -> None:
+def make_chat(probe: Probe, code_paths: list[pathlib.Path]):
+    """Create the Gemini chat with the measurement tools attached. Returns (chat, model name)."""
     try:
         from google import genai
         from google.genai import types
@@ -212,6 +216,22 @@ def run_chat(probe: Probe, code_paths: list[pathlib.Path]) -> None:
             automatic_function_calling=types.AutomaticFunctionCallingConfig(maximum_remote_calls=15),
         ),
     )
+    return chat, model
+
+
+def ask(chat, question: str) -> str:
+    """One question, one printable answer; never raises (the offline report is the fallback)."""
+    try:
+        response = _send(chat, question)
+        if not response.text:  # the model sometimes stops right after its last tool call
+            response = _send(chat, "Now explain what you measured and the fix, in plain English.")
+    except Exception as ex:  # noqa: BLE001 - keep the session alive
+        return f"The AI service failed ({type(ex).__name__}: {str(ex)[:200]}).\n       Run with --no-ai for the measured report."
+    return response.text or "(no answer from the model; run with --no-ai for the raw report)"
+
+
+def run_chat(probe: Probe, code_paths: list[pathlib.Path]) -> None:
+    chat, model = make_chat(probe, code_paths)
     print(f"Probe is listening (model: {model}). Describe your problem. Ctrl+C to quit.\n")
     while True:
         try:
@@ -221,22 +241,84 @@ def run_chat(probe: Probe, code_paths: list[pathlib.Path]) -> None:
             return
         if not question:
             continue
-        try:
-            response = _send(chat, question)
-            if not response.text:  # the model sometimes stops right after its last tool call
-                response = _send(chat, "Now explain what you measured and the fix, in plain English.")
-        except Exception as ex:  # noqa: BLE001 - keep the chat alive; the offline report still works
-            print(f"\nprobe> The AI service failed ({type(ex).__name__}: {str(ex)[:200]}).")
-            print("       Run with --no-ai for the measured report.\n")
-            continue
-        print(f"\nprobe> {response.text or '(no answer from the model; run with --no-ai for the raw report)'}\n")
+        print(f"\nprobe> {ask(chat, question)}\n")
+
+
+PAGE_SECONDS = 1.6
+READY_PAGES = ["PROBE READY", "GREEN = check", "BLUE = ask AI", "RED = clear"]
+
+
+def measured_verdict(probe: Probe, expected: int | None) -> tuple[str, list[str]]:
+    """Run the full checkup (no AI). Returns (status, pages) and sets the LEDs + beep."""
+    probe.set_status("working")
+    probe.show_text("measuring...")
+    report = diagnose.full_report(probe, expected)
+    report["connection_stability"] = diagnose.stability(probe, scans=12, interval=0.2)
+    status, pages = diagnose.headline(report)
+    probe.set_status(status)
+    probe.show_text(pages[0])
+    probe.beep(status == "ok")
+    return status, pages
+
+
+def run_buttons(probe: Probe, code_paths: list[pathlib.Path], expected: int | None, use_ai: bool) -> None:
+    """Drive Probe from the FREE-WILi's own buttons: GREEN measures, BLUE asks the AI, RED clears.
+
+    The screen holds one 18-character line, so the current message is a list of pages that
+    this loop cycles through while it waits for the next button press.
+    """
+    if expected is None:
+        for path in code_paths:
+            expected = diagnose.address_from_code(path.read_text(errors="replace"))
+            if expected is not None:
+                break
+    chat = make_chat(probe, code_paths)[0] if use_ai else None
+    print("Button mode. On the FREE-WILi: GREEN = measure, BLUE = ask the AI, RED = clear. Ctrl+C to quit.")
+    if expected is not None:
+        print(f"Comparing against the address in your code: {diagnose.hexb(expected)}")
+
+    pages, page, next_flip = READY_PAGES, -1, 0.0
+    probe.set_status("off")
+    was_down = False
+    try:
+        while True:
+            buttons = probe.read_buttons()
+            down = buttons["green"] or buttons["blue"] or buttons["red"]
+            if down and not was_down:
+                if buttons["green"]:
+                    status, pages = measured_verdict(probe, expected)
+                    print(f"\n[GREEN] {status.upper()}: {' | '.join(pages)}", flush=True)
+                elif buttons["blue"]:
+                    print("\n[BLUE] asking the AI...", flush=True)
+                    if chat is None:
+                        print("AI is off (--no-ai). Press GREEN for the measured verdict.")
+                    else:
+                        probe.set_status("working")
+                        probe.show_text("thinking...")
+                        print(f"\nprobe> {ask(chat, 'My circuit is not working. Measure it and tell me why.')}\n", flush=True)
+                        pages = ["AI ANSWERED", "read the laptop", "GREEN = re-check"]
+                else:
+                    probe.set_status("off")
+                    pages = READY_PAGES
+                    print("\n[RED] cleared", flush=True)
+                page, next_flip = 0, time.monotonic() + PAGE_SECONDS
+                if not buttons["green"]:
+                    probe.show_text(pages[0])
+            elif time.monotonic() >= next_flip:
+                page = (page + 1) % len(pages)
+                probe.show_text(pages[page])
+                next_flip = time.monotonic() + PAGE_SECONDS
+            was_down = down
+            time.sleep(0.05)
+    except KeyboardInterrupt:
+        print()
 
 
 def run_offline(probe: Probe, expected: str | None) -> None:
     report = diagnose.full_report(probe, diagnose.parse_int(expected) if expected else None)
     status = diagnose.overall_status(report)
     print(json.dumps(report, indent=2))
-    headline = {"ok": "All checks passed", "warn": "Works, but check warnings", "fail": "Problem found - see laptop"}[status]
+    headline = {"ok": "ALL GOOD", "warn": "CHECK WARNINGS", "fail": "PROBLEM FOUND"}[status]
     probe.show_text(headline)
     probe.set_status(status)
     probe.beep(status == "ok")
@@ -247,7 +329,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Probe: an AI lab partner wired into your circuit.")
     parser.add_argument("--code", nargs="*", default=[], help="source files the AI may read")
     parser.add_argument("--no-ai", action="store_true", help="offline diagnostic report, no API key")
-    parser.add_argument("--expect", help="I2C address your code uses, e.g. 0x27 (offline mode)")
+    parser.add_argument("--expect", help="I2C address your code uses, e.g. 0x27 (offline and button modes)")
+    parser.add_argument("--buttons", action="store_true",
+                        help="run from the FREE-WILi's buttons: GREEN measures, BLUE asks the AI, RED clears")
     args = parser.parse_args()
 
     try:
@@ -267,7 +351,9 @@ def main() -> None:
     except ProbeError as ex:
         sys.exit(str(ex))
     try:
-        if args.no_ai:
+        if args.buttons:
+            run_buttons(probe, code_paths, diagnose.parse_int(args.expect) if args.expect else None, not args.no_ai)
+        elif args.no_ai:
             run_offline(probe, args.expect)
         else:
             run_chat(probe, code_paths)

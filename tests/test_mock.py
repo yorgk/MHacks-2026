@@ -111,3 +111,41 @@ def test_stability_flags_loose_connection():
 
 def test_stability_nothing_answered():
     assert diagnose.stability(MockProbe("empty"), scans=5, interval=0)["verdict"] == "nothing_answered"
+
+
+def test_headlines_for_the_three_demo_bugs():
+    from probe.hw import SCREEN_COLUMNS
+
+    def checkup(probe, expected):
+        report = diagnose.full_report(probe, expected)
+        report["connection_stability"] = diagnose.stability(probe, scans=6, interval=0)
+        return diagnose.headline(report)
+
+    results = {
+        "code": checkup(MockProbe("freewili_kit"), 0x13),
+        "wiring": checkup(MockProbe("empty"), 0x13),
+        # full_report scans a few times before the stability check starts
+        "loose": checkup(FlakyProbe([True] * 3 + [True, False] * 3), None),
+        "good": checkup(MockProbe("freewili_kit"), 0x14),
+        "stuck": checkup(MockProbe("stuck_bus"), None),
+    }
+    assert results["code"][0] == "fail" and results["code"][1][0] == "CODE BUG"
+    assert "BMM350 at 0x14" in results["code"][1] and "code uses 0x13" in results["code"][1]
+    assert results["wiring"][1][0] == "WIRING BUG"
+    assert results["loose"][0] == "warn" and results["loose"][1][0] == "LOOSE WIRE"
+    assert results["good"] == ("ok", ["ALL GOOD", "BMM350 at 0x14", "found 0x44", "matches code"]) or results["good"][1][0] == "ALL GOOD"
+    assert results["stuck"][1][0] == "BUS FAULT"
+    for status, pages in results.values():  # every page must fit the one-line, 18-character screen
+        assert all(len(page) <= SCREEN_COLUMNS for page in pages), pages
+
+
+def test_address_from_code_and_screen_fit():
+    from probe.hw import fit_screen
+
+    sketch = pathlib.Path("demo/bmm350_sketch.ino").read_text()
+    assert diagnose.address_from_code(sketch) == 0x13
+    assert diagnose.address_from_code("int x = 5;") is None
+    assert fit_screen("ALL GOOD") == "ALL GOOD"
+    cut = fit_screen("Wrong chip & address: BMM350 at 0x14, code looks for BMM150")
+    assert len(cut) <= 18 and cut.endswith("..")
+    assert chr(10) not in fit_screen("two" + chr(10) + "lines")

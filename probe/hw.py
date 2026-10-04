@@ -38,6 +38,17 @@ OUTPUT_PINS = {8, 11, 13, 14, 15, 25, 27}
 NUM_BOARD_LEDS = 7
 BEEP_MS = 80
 BEEP_AMPLITUDE = 0.05
+BUTTONS = ("gray", "yellow", "green", "blue", "red")  # order of the firmware's button report
+# The firmware's text overlay shows ONE line of 18 characters (measured with a ruler string on
+# the real screen); anything longer is cut off, and a newline would end the serial command.
+SCREEN_COLUMNS = 18
+
+
+def fit_screen(text: str, columns: int = SCREEN_COLUMNS) -> str:
+    """Make `text` a single line that fits the screen, marking a cut with '..'."""
+    line = " ".join(text.split())
+    return line if len(line) <= columns else line[: columns - 2].rstrip() + ".."
+
 
 STATUS_COLORS: dict[str, tuple[int, int, int]] = {
     "ok": (0, 60, 0),
@@ -62,6 +73,7 @@ class Probe(Protocol):
     def set_status(self, status: str) -> None: ...
     def beep(self, ok: bool) -> None: ...
     def uart_listen(self, seconds: float) -> bytes: ...
+    def read_buttons(self) -> dict[str, bool]: ...
     def close(self) -> None: ...
 
 
@@ -132,7 +144,11 @@ class FreeWiliProbe:
         _unwrap(commands[state](pin), f"Setting GPIO{pin} {state}")
 
     def show_text(self, text: str) -> None:
-        _unwrap(self._dev.gui.show_text(text), "Showing text on the display")
+        _unwrap(self._dev.gui.show_text(fit_screen(text)), "Showing text on the display")
+
+    def read_buttons(self) -> dict[str, bool]:
+        states = self._raw("g\\u", "Reading buttons").split()
+        return {name: state == "1" for name, state in zip(BUTTONS, states)}
 
     def set_status(self, status: str) -> None:
         r, g, b = STATUS_COLORS.get(status, STATUS_COLORS["off"])
@@ -224,7 +240,10 @@ class MockProbe:
         self.pins[pin] = {"high": 1, "low": 0}.get(state, 1 - self.pins[pin])
 
     def show_text(self, text: str) -> None:
-        self.display = text
+        self.display = fit_screen(text)
+
+    def read_buttons(self) -> dict[str, bool]:
+        return dict.fromkeys(BUTTONS, False)
 
     def set_status(self, status: str) -> None:
         self.status = status
