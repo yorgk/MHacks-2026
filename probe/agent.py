@@ -150,8 +150,8 @@ def build_tools(probe: Probe, code_paths: list[pathlib.Path], verbose: bool = Tr
     @traced
     def show_result(headline: str, status: str) -> dict:
         """Show the verdict on the FREE-WILi screen and LEDs, plus a short beep.
-        headline: AT MOST 18 CHARACTERS, the screen shows one short line. Use a label such as
-        "CODE BUG: use 0x14", "WIRING BUG", "LOOSE WIRE" or "ALL GOOD".
+        headline: AT MOST 8 CHARACTERS (the screen is tiny). Use exactly one of these labels:
+        "CODE BUG", "WIRING", "LOOSE", "BUS BAD" or "ALL GOOD".
         status: "ok" = green, "fail" = red, "warn" = yellow."""
         shown = fit_screen(headline)
         probe.show_text(shown)
@@ -245,13 +245,13 @@ def run_chat(probe: Probe, code_paths: list[pathlib.Path]) -> None:
 
 
 PAGE_SECONDS = 1.6
-READY_PAGES = ["PROBE READY", "GREEN = check", "BLUE = ask AI", "RED = clear"]
+READY_PAGES = ["PROBE", "ready", "press", "green"]
 
 
 def measured_verdict(probe: Probe, expected: int | None) -> tuple[str, list[str]]:
     """Run the full checkup (no AI). Returns (status, pages) and sets the LEDs + beep."""
     probe.set_status("working")
-    probe.show_text("measuring...")
+    probe.show_text("testing")
     report = diagnose.full_report(probe, expected)
     report["connection_stability"] = diagnose.stability(probe, scans=12, interval=0.2)
     status, pages = diagnose.headline(report)
@@ -294,9 +294,9 @@ def run_buttons(probe: Probe, code_paths: list[pathlib.Path], expected: int | No
                         print("AI is off (--no-ai). Press GREEN for the measured verdict.")
                     else:
                         probe.set_status("working")
-                        probe.show_text("thinking...")
+                        probe.show_text("thinking")
                         print(f"\nprobe> {ask(chat, 'My circuit is not working. Measure it and tell me why.')}\n", flush=True)
-                        pages = ["AI ANSWERED", "read the laptop", "GREEN = re-check"]
+                        pages = ["AI done", "see", "laptop"]
                 else:
                     probe.set_status("off")
                     pages = READY_PAGES
@@ -318,7 +318,7 @@ def run_offline(probe: Probe, expected: str | None) -> None:
     report = diagnose.full_report(probe, diagnose.parse_int(expected) if expected else None)
     status = diagnose.overall_status(report)
     print(json.dumps(report, indent=2))
-    headline = {"ok": "ALL GOOD", "warn": "CHECK WARNINGS", "fail": "PROBLEM FOUND"}[status]
+    headline = {"ok": "ALL GOOD", "warn": "WARNING", "fail": "PROBLEM"}[status]
     probe.show_text(headline)
     probe.set_status(status)
     probe.beep(status == "ok")

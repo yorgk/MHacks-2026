@@ -28,13 +28,13 @@ def main() -> None:
         i2c = dev.io.i2c
         i2c.i2c_slave_enable(0).expect("disabling slave mode failed")
         if args.off:
-            dev.gui.show_text("sensor: OFF")
+            dev.gui.show_text("OFF")
             print("stand-in sensor is off")
             return
         # Like a BMM350: a read from register 0 returns 2 dummy bytes, then the chip ID.
         i2c.i2c_slave_set_data(bytes([0x00, 0x00, 0x00, args.chip_id])).expect("loading registers failed")
         i2c.i2c_slave_enable(args.address).expect("enabling slave mode failed")
-        dev.gui.show_text(f"sensor @ 0x{args.address:02X}")
+        dev.gui.show_text(f"at 0x{args.address:02X}")
         print(f"stand-in sensor at 0x{args.address:02X}, chip ID 0x{args.chip_id:02X}")
     finally:
         dev.close()

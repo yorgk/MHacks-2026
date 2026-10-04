@@ -114,7 +114,7 @@ def test_stability_nothing_answered():
 
 
 def test_headlines_for_the_three_demo_bugs():
-    from probe.hw import SCREEN_COLUMNS
+    from probe.hw import SCREEN_WIDTH, text_width
 
     def checkup(probe, expected):
         report = diagnose.full_report(probe, expected)
@@ -129,23 +129,29 @@ def test_headlines_for_the_three_demo_bugs():
         "good": checkup(MockProbe("freewili_kit"), 0x14),
         "stuck": checkup(MockProbe("stuck_bus"), None),
     }
-    assert results["code"][0] == "fail" and results["code"][1][0] == "CODE BUG"
-    assert "BMM350 at 0x14" in results["code"][1] and "code uses 0x13" in results["code"][1]
-    assert results["wiring"][1][0] == "WIRING BUG"
-    assert results["loose"][0] == "warn" and results["loose"][1][0] == "LOOSE WIRE"
-    assert results["good"] == ("ok", ["ALL GOOD", "BMM350 at 0x14", "found 0x44", "matches code"]) or results["good"][1][0] == "ALL GOOD"
-    assert results["stuck"][1][0] == "BUS FAULT"
-    for status, pages in results.values():  # every page must fit the one-line, 18-character screen
-        assert all(len(page) <= SCREEN_COLUMNS for page in pages), pages
+    status, pages = results["code"]
+    assert status == "fail" and pages[0] == "CODE BUG"
+    assert pages[1:4] == ["wire ok", "BMM350", "at 0x14"] and pages[-3:] == ["code has", "0x13", "use 0x14"]
+    assert results["wiring"][1][:2] == ["WIRING", "BUG"]
+    assert results["loose"][0] == "warn" and results["loose"][1][:2] == ["LOOSE", "WIRE"]
+    assert results["good"][0] == "ok" and results["good"][1][0] == "ALL GOOD"
+    assert results["stuck"][1][:2] == ["BUS", "FAULT"]
+    for status, pages in results.values():  # every page must fit the measured screen width
+        assert all(text_width(page) <= SCREEN_WIDTH for page in pages), pages
 
 
 def test_address_from_code_and_screen_fit():
-    from probe.hw import fit_screen
+    from probe.agent import READY_PAGES
+    from probe.hw import SCREEN_WIDTH, fit_screen, text_width
 
     sketch = pathlib.Path("demo/bmm350_sketch.ino").read_text()
     assert diagnose.address_from_code(sketch) == 0x13
     assert diagnose.address_from_code("int x = 5;") is None
-    assert fit_screen("ALL GOOD") == "ALL GOOD"
-    cut = fit_screen("Wrong chip & address: BMM350 at 0x14, code looks for BMM150")
-    assert len(cut) <= 18 and cut.endswith("..")
+    # measured on the device: these fit ...
+    for fits in ("PROBE RE", "abcdefgh", "01234567", "ABCDEFG", "CODE BUG", "ALL GOOD", *READY_PAGES):
+        assert fit_screen(fits) == fits, fits
+    # ... and these were cut off
+    assert fit_screen("PROBE READY") == "PROBE RE"
+    assert fit_screen("ABCDEFGHIJ") == "ABCDEFG"
+    assert text_width(fit_screen("Wrong chip & address: BMM350 at 0x14")) <= SCREEN_WIDTH
     assert chr(10) not in fit_screen("two" + chr(10) + "lines")

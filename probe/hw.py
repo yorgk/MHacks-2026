@@ -39,15 +39,35 @@ NUM_BOARD_LEDS = 7
 BEEP_MS = 80
 BEEP_AMPLITUDE = 0.05
 BUTTONS = ("gray", "yellow", "green", "blue", "red")  # order of the firmware's button report
-# The firmware's text overlay shows ONE line of 18 characters (measured with a ruler string on
-# the real screen); anything longer is cut off, and a newline would end the serial command.
-SCREEN_COLUMNS = 18
+# The firmware's text overlay shows ONE line in a large proportional font. Measured on the real
+# screen: 8 digits, 8 lowercase letters or 7 capitals fit ("PROBE RE" was the visible part of
+# "PROBE READY"); the rest is cut off, and a newline would end the serial command.
+SCREEN_WIDTH = 8.0  # in lowercase-letter widths
 
 
-def fit_screen(text: str, columns: int = SCREEN_COLUMNS) -> str:
-    """Make `text` a single line that fits the screen, marking a cut with '..'."""
+def text_width(text: str) -> float:
+    """Estimated width of `text` on the device, in lowercase-letter widths."""
+    width = 0.0
+    for char in text:
+        if char in " .,:;!'|il":
+            width += 0.5
+        elif char in "MW":
+            width += 1.5
+        elif char.isupper():
+            width += 1.07
+        elif char in "mw":
+            width += 1.3
+        else:
+            width += 1.0
+    return width
+
+
+def fit_screen(text: str, width: float = SCREEN_WIDTH) -> str:
+    """Make `text` a single line and cut it to what the screen can show."""
     line = " ".join(text.split())
-    return line if len(line) <= columns else line[: columns - 2].rstrip() + ".."
+    while line and text_width(line) > width:
+        line = line[:-1].rstrip()
+    return line
 
 
 STATUS_COLORS: dict[str, tuple[int, int, int]] = {
